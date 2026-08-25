@@ -50,12 +50,22 @@ HUMEDAD_MAX_DEFAULT = 60.0
 CN_MIN_DEFAULT = 25.0
 CN_MAX_DEFAULT = 35.0
 
+# Lista de operadores para el selector (edítala aquí con los nombres reales
+# de tu equipo; "Otro" siempre queda disponible por si falta alguien).
+OPERADORES = ["Operador 1", "Operador 2", "Operador 3", "Otro"]
+
+# Prefijo y año para los códigos de lote autogenerados, ej: CMP-2026-001
+PREFIJO_LOTE = "CMP"
+
 # ---------------------------------------------------------------
 # 3. "MEMORIA" DE LA APP (mientras está abierta en el navegador)
 #    - lotes: diccionario {codigo_lote: DataFrame con el historial}
+#    - contador_lote: siguiente número correlativo a usar
 # ---------------------------------------------------------------
 if "lotes" not in st.session_state:
     st.session_state.lotes = {}
+if "contador_lote" not in st.session_state:
+    st.session_state.contador_lote = 1
 
 # ---------------------------------------------------------------
 # 4. FUNCIONES DE CÁLCULO
@@ -142,28 +152,52 @@ tab_nuevo, tab_historial = st.tabs(["➕ Nuevo ingreso a un lote", "📋 Histori
 # ---- PESTAÑA: NUEVO INGRESO -------------------------------------------------
 with tab_nuevo:
     col1, col2, col3 = st.columns(3)
+
     with col1:
-        operador = st.text_input("Nombre del operador")
+        operador_sel = st.selectbox("Operador", OPERADORES)
+        if operador_sel == "Otro":
+            operador = st.text_input("Nombre del operador (nuevo)")
+        else:
+            operador = operador_sel
+
     with col2:
         fecha_ingreso = st.date_input("Fecha", value=date.today())
-    with col3:
-        codigo_lote = st.text_input("Código de lote", placeholder="Ej: LOTE-2026-08")
 
-    st.subheader("Cantidades ingresadas hoy (kg)")
+    with col3:
+        # El operador elige un lote existente (para seguir agregando a
+        # su historial) o "Crear nuevo lote"; el código nunca se escribe
+        # a mano, así se evitan errores de tipeo.
+        opciones_lote = ["➕ Crear nuevo lote"] + list(st.session_state.lotes.keys())
+        lote_sel = st.selectbox("Lote", opciones_lote)
+
+        if lote_sel == "➕ Crear nuevo lote":
+            codigo_lote_sugerido = f"{PREFIJO_LOTE}-{fecha_ingreso.year}-{st.session_state.contador_lote:03d}"
+            st.caption(f"Se creará el código: **{codigo_lote_sugerido}**")
+            codigo_lote = codigo_lote_sugerido
+            es_lote_nuevo = True
+        else:
+            codigo_lote = lote_sel
+            es_lote_nuevo = False
+
+    st.subheader("Cantidades ingresadas hoy (toneladas)")
+    st.caption("1 tonelada = 1000 kg. Los cálculos internos son los mismos, solo cambia la unidad de ingreso.")
     cols = st.columns(len(INSUMOS_REF))
-    cantidades = {}
+    cantidades_ton = {}
     for col, (codigo, ref) in zip(cols, INSUMOS_REF.items()):
         with col:
-            cantidades[codigo] = st.number_input(
-                f"{ref['nombre']} ({codigo})", min_value=0.0, step=10.0, key=f"nuevo_{codigo}"
+            cantidades_ton[codigo] = st.number_input(
+                f"{ref['nombre']} ({codigo})", min_value=0.0, step=0.1, format="%.2f", key=f"nuevo_{codigo}"
             )
+            if cantidades_ton[codigo] > 0:
+                st.caption(f"= {cantidades_ton[codigo] * 1000:.0f} kg")
 
     if st.button("Calcular y registrar ingreso", type="primary"):
-        if not codigo_lote:
-            st.error("Ingresa un código de lote antes de continuar.")
-        elif not operador:
+        if not operador:
             st.error("Ingresa el nombre del operador.")
         else:
+            # Convertimos a kg solo para el cálculo interno (las fórmulas
+            # y las densidades de referencia están pensadas en kg).
+            cantidades = {codigo: ton * 1000 for codigo, ton in cantidades_ton.items()}
             masa, humedad_pct, c_total, n_total, cn = calcular_mezcla(cantidades)
 
             # Traemos el historial previo del lote (si existe) para
@@ -173,8 +207,9 @@ with tab_nuevo:
                 hist_previo = st.session_state.lotes[codigo_lote]
                 carbono_acum = hist_previo["carbono_total_kg"].sum() + c_total
                 nitrogeno_acum = hist_previo["nitrogeno_total_kg"].sum() + n_total
-                masa_acum = hist_previo["masa_total_kg"].sum() + masa
-                humedad_prev_ponderada = (hist_previo["humedad_%"] * hist_previo["masa_total_kg"]).sum()
+                masa_acum_ton_previa = hist_previo["masa_total_ton"].sum()
+                masa_acum = (masa_acum_ton_previa * 1000) + masa
+                humedad_prev_ponderada = (hist_previo["humedad_%"] * hist_previo["masa_total_ton"] * 1000).sum()
                 humedad_acum_pct = (humedad_prev_ponderada + humedad_pct * masa) / masa_acum if masa_acum else 0
                 cn_acum = carbono_acum / nitrogeno_acum if nitrogeno_acum else 0
             else:
@@ -184,15 +219,17 @@ with tab_nuevo:
             nueva_fila = pd.DataFrame([{
                 "fecha": fecha_ingreso,
                 "operador": operador,
-                **{f"{c}_kg": cantidades[c] for c in INSUMOS_REF},
-                "masa_total_kg": masa,
+                **{f"{c}_ton": round(cantidades_ton[c], 2) for c in INSUMOS_REF},
+                "masa_total_ton": round(masa / 1000, 2),
                 "humedad_%": round(humedad_pct, 1),
-                "carbono_total_kg": round(c_total, 2),
-                "nitrogeno_total_kg": round(n_total, 2),
                 "relacion_cn": round(cn, 1) if cn != float("inf") else None,
-                "masa_acumulada_kg": round(masa_acum, 1),
+                "masa_acumulada_ton": round(masa_acum / 1000, 2),
                 "humedad_acumulada_%": round(humedad_acum_pct, 1),
                 "cn_acumulado": round(cn_acum, 1),
+                # guardamos también en kg internamente, útil si más adelante
+                # se conecta con laboratorio o reportes que pidan kg
+                "carbono_total_kg": round(c_total, 2),
+                "nitrogeno_total_kg": round(n_total, 2),
             }])
 
             if codigo_lote in st.session_state.lotes:
@@ -202,17 +239,22 @@ with tab_nuevo:
             else:
                 st.session_state.lotes[codigo_lote] = nueva_fila
 
+            # Si era un lote nuevo, recién ahora avanzamos el correlativo,
+            # para no "quemar" números si alguien cancela sin registrar.
+            if es_lote_nuevo:
+                st.session_state.contador_lote += 1
+
             st.success(f"Ingreso registrado en el lote {codigo_lote}.")
 
             st.subheader("Resultado de este ingreso")
             m1, m2, m3 = st.columns(3)
-            m1.metric("Masa ingresada", f"{masa:.0f} kg")
+            m1.metric("Masa ingresada", f"{masa / 1000:.2f} t")
             m2.metric("Humedad", f"{humedad_pct:.1f} %")
             m3.metric("Relación C/N", f"{cn:.1f} : 1")
 
             st.subheader("Acumulado del lote (todo lo ingresado hasta hoy)")
             m4, m5, m6 = st.columns(3)
-            m4.metric("Masa total del lote", f"{masa_acum:.0f} kg")
+            m4.metric("Masa total del lote", f"{masa_acum / 1000:.2f} t")
             m5.metric("Humedad acumulada", f"{humedad_acum_pct:.1f} %")
             m6.metric("C/N acumulado", f"{cn_acum:.1f} : 1")
 
