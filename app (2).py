@@ -18,6 +18,8 @@ Cómo funciona este archivo (guía rápida para quien no programa):
 
 import streamlit as st
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 from datetime import date
 
 # ---------------------------------------------------------------
@@ -31,7 +33,7 @@ st.set_page_config(
 
 # Colores de marca (Anglo American)
 COLOR_AZUL = "#031795"
-COLOR_AZUL_CLARO = "#347FF6"
+COLOR_AZUL_CLARO = "#ABCBFA"
 COLOR_ROJO = "#FE0000"
 
 # ---------------------------------------------------------------
@@ -109,9 +111,47 @@ FASES_COMPOSTAJE = {
 if "seguimiento" not in st.session_state:
     st.session_state["seguimiento"] = {}
 
+
+def graficar_curva_fases():
+    """
+    Dibuja la curva típica de temperatura durante el compostaje,
+    con bandas de color para cada fase. Es una curva de referencia
+    (esquemática, de literatura), no datos reales de la planta.
+    """
+    # Puntos de control aproximados (día, temperatura °C) para dibujar
+    # la forma clásica de la curva: sube rápido, se mantiene alta en
+    # termófila, baja en enfriamiento, y se aplana en maduración.
+    dias_ctrl = [0, 2, 4, 10, 20, 23, 30, 45, 60]
+    temp_ctrl = [15, 30, 55, 65, 60, 45, 28, 20, 18]
+    dias = np.linspace(0, 60, 300)
+    temp = np.interp(dias, dias_ctrl, temp_ctrl)
+
+    fig, ax = plt.subplots(figsize=(8, 3.5))
+
+    bandas = [
+        (0, 4, "Mesófila I", "#ABCBFA"),
+        (4, 23, "Termófila", "#031795"),
+        (23, 30, "Mesófila II", "#6FA5F9" if False else "#5B8DEF"),
+        (30, 60, "Maduración", "#D8E4FB"),
+    ]
+    for inicio, fin, nombre, color in bandas:
+        ax.axvspan(inicio, fin, color=color, alpha=0.25)
+        ax.text((inicio + fin) / 2, 68, nombre, ha="center", fontsize=9, color="#031795", fontweight="bold")
+
+    ax.plot(dias, temp, color="#FE0000", linewidth=2.5)
+    ax.set_xlabel("Días transcurridos (aproximado)")
+    ax.set_ylabel("Temperatura (°C)")
+    ax.set_title("Curva típica de temperatura durante el compostaje (referencial)", fontsize=11)
+    ax.set_ylim(0, 75)
+    ax.set_xlim(0, 60)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    return fig
+
 # Lista de operadores para el selector (edítala aquí con los nombres reales
 # de tu equipo; "Otro" siempre queda disponible por si falta alguien).
-OPERADORES = ["Adrian Carpio", "Fernando Valdivia", "Mishel Ruiz", "Otro"]
+OPERADORES = ["Operador 1", "Operador 2", "Operador 3", "Otro"]
 
 # Prefijo para los códigos de lote autogenerados, ej: CMP-2026-001
 PREFIJO_LOTE = "CMP"
@@ -254,7 +294,7 @@ tab_m1, tab_m2, tab_m3 = st.tabs([
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
 with tab_m1:
-    encabezado("Módulo 1 — Formulación de Lotes")
+    encabezado("🌱 Módulo 1 — Formulación de Lotes")
     st.caption("Registro de ingresos de residuos por lote, con cálculo automático de humedad y relación C/N")
 
     tab_nuevo, tab_historial = st.tabs(["➕ Nuevo ingreso a un lote", "📋 Historial de lotes"])
@@ -744,19 +784,23 @@ with tab_m3:
 
     with st.expander("📚 Fases del proceso de compostaje (referencia educativa)", expanded=False):
         st.caption(
-            "Rangos de literatura general de compostaje. Son un punto de partida — "
+            "Curva y rangos de literatura general de compostaje. Son un punto de partida — "
             "deben ajustarse con la experiencia real de la planta (altitud 3000 msnm)."
         )
-        for nombre_fase, datos in FASES_COMPOSTAJE.items():
-            st.markdown(f"**{nombre_fase}**")
-            st.write(datos["descripcion"])
-            fc1, fc2, fc3 = st.columns(3)
-            fc1.caption(f"🌡️ Temperatura: {datos['temp'][0]}–{datos['temp'][1]} °C")
-            fc2.caption(f"🧪 pH: {datos['ph'][0]}–{datos['ph'][1]}")
-            fc3.caption(f"💧 Humedad: {datos['humedad'][0]}–{datos['humedad'][1]} %")
-            st.caption(f"🦠 {datos['microorganismos']}")
-            st.caption(f"⏱️ Duración típica: {datos['duracion']}")
-            st.divider()
+        st.pyplot(graficar_curva_fases())
+
+        tabla_fases = pd.DataFrame([
+            {
+                "Fase": nombre,
+                "Temperatura (°C)": f"{d['temp'][0]}–{d['temp'][1]}",
+                "pH": f"{d['ph'][0]}–{d['ph'][1]}",
+                "Humedad (%)": f"{d['humedad'][0]}–{d['humedad'][1]}",
+                "Duración típica": d["duracion"],
+                "Microorganismos / notas": d["microorganismos"],
+            }
+            for nombre, d in FASES_COMPOSTAJE.items()
+        ])
+        st.dataframe(tabla_fases, use_container_width=True, hide_index=True)
 
     if not st.session_state.lotes:
         st.info("Aún no hay lotes creados. Ve al Módulo 1 y registra al menos un lote antes de hacer seguimiento.")
