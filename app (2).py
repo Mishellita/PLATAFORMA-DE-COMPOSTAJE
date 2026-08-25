@@ -24,6 +24,7 @@ from datetime import date
 # ---------------------------------------------------------------
 st.set_page_config(
     page_title="Gestión de Compostaje",
+    page_icon="🌱",
     layout="wide",
 )
 
