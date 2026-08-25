@@ -364,7 +364,6 @@ with tab_m1:
                 "Este historial no se sobrescribe: cada ingreso agrega una fila nueva, "
                 "para mostrar la evolución completa del lote desde el día 1."
             )
-
 # =================================================================
 # MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
 # =================================================================
@@ -379,9 +378,9 @@ with tab_m2:
             "considerando que va a ingresar más lodo deshidratado de PTAR a la planta."
         )
         st.write(
-            "**Sobre la referencia 60/20/20:** los operadores han declarado trabajar históricamente "
+            "*Sobre la referencia 60/20/20:* los operadores han declarado trabajar históricamente "
             "con 60% residuos orgánicos, 20% lodo y 20% cartón. Esa referencia se muestra aquí "
-            "**solo como comparación histórica**, no como una regla obligatoria — la mezcla real "
+            "*solo como comparación histórica*, no como una regla obligatoria — la mezcla real "
             "puede y debe ajustarse según lo que arrojen los cálculos de humedad y C/N."
         )
 
@@ -424,9 +423,16 @@ with tab_m2:
         mezcla_base = mezcla_ton(insumos_planificados)
 
         # --- Referencia histórica 60/20/20 (solo informativa) -------
-        ro_hist = total_base_ton * (PROPORCION_DECLARADA["RO"] / 100)
-        ld_hist = total_base_ton * (PROPORCION_DECLARADA["LD"] / 100)
-        ca_hist = total_base_ton * (PROPORCION_DECLARADA["CA"] / 100)
+        # OJO: se ancla en el LODO, porque es la cantidad que se está
+        # planificando procesar (el "cuello de botella" real de la
+        # planta); RO y CA de referencia se calculan a partir de él.
+        if lodo_ton > 0:
+            total_hist = lodo_ton / (PROPORCION_DECLARADA["LD"] / 100)
+        else:
+            total_hist = 0.0
+        ro_hist = total_hist * (PROPORCION_DECLARADA["RO"] / 100)
+        ca_hist = total_hist * (PROPORCION_DECLARADA["CA"] / 100)
+        ld_hist = lodo_ton
 
         pct_ro_real = (ro_ton / total_base_ton) * 100
         pct_ca_real = (ca_ton / total_base_ton) * 100
@@ -443,6 +449,22 @@ with tab_m2:
         )
         if rod_ton > 0:
             st.caption(f"Se incluyen además {rod_ton:.2f} t de ROD, que no forma parte de la referencia 60/20/20.")
+
+        if lodo_ton > 0:
+            st.markdown("*Diferencia respecto a la referencia histórica* (tomando el lodo como base fija):")
+            diferencia_ro = ro_ton - ro_hist
+            diferencia_ca = ca_ton - ca_hist
+            dc1, dc2 = st.columns(2)
+            with dc1:
+                if diferencia_ro >= 0:
+                    st.write(f"🟢 RO: *{diferencia_ro:.2f} t por encima* de la referencia ({ro_hist:.2f} t). No implica que deba retirarse.")
+                else:
+                    st.write(f"🟡 RO: *{abs(diferencia_ro):.2f} t por debajo* de la referencia ({ro_hist:.2f} t).")
+            with dc2:
+                if diferencia_ca >= 0:
+                    st.write(f"🟢 Cartón: *{diferencia_ca:.2f} t por encima* de la referencia ({ca_hist:.2f} t).")
+                else:
+                    st.write(f"🟡 Cartón: *{abs(diferencia_ca):.2f} t por debajo* de la referencia ({ca_hist:.2f} t). Esto es lo que se busca cerrar en la Alternativa C.")
 
         # --- Alternativas --------------------------------------------
         st.subheader("3. Alternativas de material estructurante")
@@ -575,15 +597,28 @@ with tab_m2:
         else:
             st.warning("⚠️ Ninguna alternativa alcanza a la vez humedad y C/N adecuados. Revisa la combinación de materiales.")
 
-        det1, det2, det3 = st.columns(3)
-        det1.metric("Estado — Solo aserrín", estado_a)
-        det2.metric("Estado — Solo cartón", estado_b)
-        det3.metric("Estado — Cartón + aserrín", estado_c)
+        st.markdown("*Resumen por alternativa* (si eliges esta opción, así quedaría la mezcla):")
+
+        def fila_resumen(nombre, mezcla, estructurante_ton_lodo, estado):
+            emoji = "🟢" if estado.startswith("VIABLE") else ("🟡" if estado in ("HUMEDAD BAJA", "HUMEDAD ALTA") else "🔴")
+            st.markdown(
+                f"<div style='font-size:14px; padding:4px 0;'>"
+                f"{emoji} <b>{nombre}</b> — C/N: {mezcla['cn']:.1f}:1 · "
+                f"Humedad: {mezcla['humedad']:.1f}% · "
+                f"Estructurante/t lodo: {estructurante_ton_lodo:.2f} t · "
+                f"Estado: {estado}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        fila_resumen("Solo aserrín", mezcla_a, ind_a, estado_a)
+        fila_resumen("Solo cartón adicional", mezcla_b, ind_b, estado_b)
+        fila_resumen("Cartón + aserrín", mezcla_c, ind_c, estado_c)
 
         with st.expander("¿Cómo interpretar las alternativas?"):
-            st.write("**Solo aserrín:** cuánto aserrín sería necesario si se usa como único material corrector del C/N.")
-            st.write("**Solo cartón:** cuánto cartón adicional se necesitaría si se usa únicamente este material.")
-            st.write("**Cartón + aserrín:** primero aprovecha el cartón hasta acercarse a la referencia histórica, y luego usa aserrín como complemento.")
+            st.write("*Solo aserrín:* cuánto aserrín sería necesario si se usa como único material corrector del C/N.")
+            st.write("*Solo cartón:* cuánto cartón adicional se necesitaría si se usa únicamente este material.")
+            st.write("*Cartón + aserrín:* primero aprovecha el cartón hasta acercarse a la referencia histórica, y luego usa aserrín como complemento.")
             st.write("Una cantidad elevada de estructurante no significa que el cálculo esté mal: puede indicar que los materiales base están lejos de las condiciones objetivo.")
             st.write(f"Rango de humedad usado: {hum_min:.0f}%–{hum_max:.0f}%. Rango C/N usado: {cn_min:.0f}–{cn_max:.0f}.")
 
@@ -640,6 +675,11 @@ referenciales de literatura y debe recalibrarse cuando exista caracterización r
     # --- Historial de consultas de este módulo ---------------------------
     st.divider()
     st.subheader("Historial de consultas y alertas de este módulo")
+    st.caption(
+        "Aquí queda registrado cada reporte de solicitud que generas en la sección 6 "
+        "(qué alternativa elegiste y cuánto aserrín/cartón pediste), como bitácora "
+        "de las decisiones tomadas durante la sesión."
+    )
     if st.session_state["consultas_aserrin"]:
         st.dataframe(pd.DataFrame(st.session_state["consultas_aserrin"]), use_container_width=True)
     else:
