@@ -195,8 +195,8 @@ def encabezado(texto):
 # 6. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
 tab_m1, tab_m2 = st.tabs([
-    "🌾 Módulo 1 — Formulación de Lotes",
-    "🪵 Módulo 2 — Capacidad de Estructurante",
+    "Módulo 1 — Formulación de Lotes",
+    "Módulo 2 — Capacidad de Estructurante",
 ])
 
 # =================================================================
