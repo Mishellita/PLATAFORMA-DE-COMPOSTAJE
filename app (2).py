@@ -149,9 +149,8 @@ def graficar_curva_fases():
     fig.tight_layout()
     return fig
 
-# Lista de operadores para el selector (edítala aquí con los nombres reales
-# de tu equipo; "Otro" siempre queda disponible por si falta alguien).
-OPERADORES = ["Operador 1", "Operador 2", "Operador 3", "Otro"]
+# Lista de operadores para el selector.
+OPERADORES = ["Adrián Carpio", "Fernando Valdivia", "Michelle Rubiz", "Otro"]
 
 # Prefijo para los códigos de lote autogenerados, ej: CMP-2026-001
 PREFIJO_LOTE = "CMP"
