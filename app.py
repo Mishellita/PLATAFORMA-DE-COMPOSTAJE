@@ -114,38 +114,54 @@ if "seguimiento" not in st.session_state:
 
 def graficar_curva_fases():
     """
-    Dibuja la curva típica de temperatura durante el compostaje,
-    con bandas de color para cada fase. Es una curva de referencia
-    (esquemática, de literatura), no datos reales de la planta.
+    Dibuja la curva típica de temperatura y pH durante el compostaje,
+    con bandas de color para cada fase, marcas de volteo y relación
+    C/N de referencia al inicio y al final. Es una curva esquemática
+    de literatura general, no datos reales de la planta.
     """
-    # Puntos de control aproximados (día, temperatura °C) para dibujar
-    # la forma clásica de la curva: sube rápido, se mantiene alta en
-    # termófila, baja en enfriamiento, y se aplana en maduración.
     dias_ctrl = [0, 2, 4, 10, 20, 23, 30, 45, 60]
     temp_ctrl = [15, 30, 55, 65, 60, 45, 28, 20, 18]
+    ph_ctrl = [6.5, 6.2, 7.0, 8.3, 8.5, 8.0, 7.5, 7.2, 7.0]
     dias = np.linspace(0, 60, 300)
     temp = np.interp(dias, dias_ctrl, temp_ctrl)
+    ph = np.interp(dias, dias_ctrl, ph_ctrl)
 
-    fig, ax = plt.subplots(figsize=(8, 3.5))
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    ax_ph = ax.twinx()
 
     bandas = [
         (0, 4, "Mesófila I", "#ABCBFA"),
         (4, 23, "Termófila", "#031795"),
-        (23, 30, "Mesófila II", "#6FA5F9" if False else "#5B8DEF"),
+        (23, 30, "Mesófila II", "#5B8DEF"),
         (30, 60, "Maduración", "#D8E4FB"),
     ]
     for inicio, fin, nombre, color in bandas:
-        ax.axvspan(inicio, fin, color=color, alpha=0.25)
-        ax.text((inicio + fin) / 2, 68, nombre, ha="center", fontsize=9, color="#031795", fontweight="bold")
+        ax.axvspan(inicio, fin, color=color, alpha=0.22)
+        ax.text((inicio + fin) / 2, 72, nombre, ha="center", fontsize=9, color="#031795", fontweight="bold")
 
-    ax.plot(dias, temp, color="#FE0000", linewidth=2.5)
+    # Marcas de volteo (esquemáticas, en la fase termófila donde son más frecuentes)
+    dias_volteo = [6, 10, 14, 18]
+    for d in dias_volteo:
+        ax.annotate("↓", xy=(d, 78), ha="center", fontsize=13, color="#FE0000")
+    ax.text(np.mean(dias_volteo), 82, "Volteos de la pila", ha="center", fontsize=8.5, color="#FE0000")
+
+    # Relación C/N de referencia al inicio y al final
+    ax.text(2, -8, "C/N inicial ≈ 25–30", ha="center", fontsize=8, color="#444")
+    ax.text(55, -8, "C/N final ≈ 10–20", ha="center", fontsize=8, color="#444")
+
+    l1, = ax.plot(dias, temp, color="#FE0000", linewidth=2.5, label="Temperatura (°C)")
+    l2, = ax_ph.plot(dias, ph, color="#F5A623", linewidth=1.8, linestyle="--", label="pH")
+
     ax.set_xlabel("Días transcurridos (aproximado)")
-    ax.set_ylabel("Temperatura (°C)")
-    ax.set_title("Curva típica de temperatura durante el compostaje (referencial)", fontsize=11)
-    ax.set_ylim(0, 75)
+    ax.set_ylabel("Temperatura (°C)", color="#FE0000")
+    ax_ph.set_ylabel("pH", color="#F5A623")
+    ax.set_title("Curva típica de temperatura y pH durante el compostaje (referencial)", fontsize=11)
+    ax.set_ylim(-12, 88)
+    ax_ph.set_ylim(4, 10)
     ax.set_xlim(0, 60)
     ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+    ax_ph.spines["top"].set_visible(False)
+    ax.legend(handles=[l1, l2], loc="upper right", fontsize=8, frameon=False)
     fig.tight_layout()
     return fig
 
@@ -813,6 +829,14 @@ with tab_m3:
         with col3:
             fase_seg = st.selectbox("Fase actual de la pila", list(FASES_COMPOSTAJE.keys()), key="m3_fase")
 
+        operadores_seg = st.multiselect(
+            "Operador(es) que realizan la medición",
+            [op for op in OPERADORES if op != "Otro"] + ["Otro"],
+            key="m3_operadores",
+        )
+        if "Otro" in operadores_seg:
+            operador_otro_seg = st.text_input("Nombre del operador adicional", key="m3_operador_otro")
+
         st.markdown("**Temperatura** — 3 puntos de medición de la pila (°C)")
         t1, t2, t3 = st.columns(3)
         temp1 = t1.number_input("Punto 1", key="m3_t1", step=0.5, format="%.1f")
@@ -833,10 +857,18 @@ with tab_m3:
         with col_h:
             humedad_seg = st.number_input("Humedad medida de la pila (%)", min_value=0.0, max_value=100.0, step=1.0, key="m3_hum")
         with col_v:
-            volteo_seg = st.checkbox("¿Se realizó volteo en esta fecha?", key="m3_volteo")
+            se_volteo = st.checkbox("¿Se realizó volteo en esta fecha?", key="m3_volteo_check")
+            if se_volteo:
+                num_volteos_dia = st.number_input("¿Cuántos volteos se hicieron?", min_value=1, step=1, value=1, key="m3_num_volteos")
+            else:
+                num_volteos_dia = 0
 
         if st.button("✅ Registrar seguimiento", type="primary"):
             ref_fase = FASES_COMPOSTAJE[fase_seg]
+            lista_operadores = [op for op in operadores_seg if op != "Otro"]
+            if "Otro" in operadores_seg and operador_otro_seg:
+                lista_operadores.append(operador_otro_seg)
+            operadores_txt = ", ".join(lista_operadores) if lista_operadores else "(sin especificar)"
 
             def evaluar_parametro(valor, rango):
                 if valor < rango[0]:
@@ -851,10 +883,10 @@ with tab_m3:
             eval_hum = evaluar_parametro(humedad_seg, ref_fase["humedad"])
 
             nueva_fila_seg = pd.DataFrame([{
-                "fecha": fecha_seg, "fase": fase_seg,
+                "fecha": fecha_seg, "fase": fase_seg, "operadores": operadores_txt,
                 "T1": temp1, "T2": temp2, "T3": temp3, "T_prom": round(temp_prom, 1),
                 "pH1": ph1, "pH2": ph2, "pH3": ph3, "pH_prom": round(ph_prom, 2),
-                "humedad_%": humedad_seg, "volteo": volteo_seg,
+                "humedad_%": humedad_seg, "volteo": se_volteo, "n_volteos": num_volteos_dia,
                 "eval_temp": eval_temp, "eval_ph": eval_ph, "eval_humedad": eval_hum,
             }])
 
@@ -936,7 +968,7 @@ with tab_m3:
 
             st.subheader("5. Registro completo del lote")
             st.dataframe(df_seg, use_container_width=True)
-            total_volteos = int(df_seg["volteo"].sum())
+            total_volteos = int(df_seg["n_volteos"].sum())
             st.caption(f"Volteos registrados en total para este lote: **{total_volteos}**")
 
             csv_seg = df_seg.to_csv(index=False).encode("utf-8")
