@@ -684,3 +684,172 @@ referenciales de literatura y debe recalibrarse cuando exista caracterización r
         st.dataframe(pd.DataFrame(st.session_state["consultas_aserrin"]), use_container_width=True)
     else:
         st.caption("Aún no hay consultas registradas en esta sesión.")
+
+# =================================================================
+# MÓDULO 3 — SEGUIMIENTO DE PILAS
+# =================================================================
+with tab_m3:
+    encabezado("🌡️ Módulo 3 — Seguimiento de Pilas")
+    st.caption("Registro diario de temperatura, pH y humedad por lote, con recomendaciones según la fase del proceso")
+
+    with st.expander("📚 Fases del proceso de compostaje (referencia educativa)", expanded=False):
+        st.caption(
+            "Rangos de literatura general de compostaje. Son un punto de partida — "
+            "deben ajustarse con la experiencia real de la planta (altitud 3000 msnm)."
+        )
+        for nombre_fase, datos in FASES_COMPOSTAJE.items():
+            st.markdown(f"**{nombre_fase}**")
+            st.write(datos["descripcion"])
+            fc1, fc2, fc3 = st.columns(3)
+            fc1.caption(f"🌡️ Temperatura: {datos['temp'][0]}–{datos['temp'][1]} °C")
+            fc2.caption(f"🧪 pH: {datos['ph'][0]}–{datos['ph'][1]}")
+            fc3.caption(f"💧 Humedad: {datos['humedad'][0]}–{datos['humedad'][1]} %")
+            st.caption(f"🦠 {datos['microorganismos']}")
+            st.caption(f"⏱️ Duración típica: {datos['duracion']}")
+            st.divider()
+
+    if not st.session_state.lotes:
+        st.info("Aún no hay lotes creados. Ve al Módulo 1 y registra al menos un lote antes de hacer seguimiento.")
+    else:
+        st.subheader("1. Registrar mediciones de hoy")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            lote_seg = st.selectbox("Código de lote", list(st.session_state.lotes.keys()), key="m3_lote")
+        with col2:
+            fecha_seg = st.date_input("Fecha de seguimiento", value=date.today(), key="m3_fecha")
+        with col3:
+            fase_seg = st.selectbox("Fase actual de la pila", list(FASES_COMPOSTAJE.keys()), key="m3_fase")
+
+        st.markdown("**Temperatura** — 3 puntos de medición de la pila (°C)")
+        t1, t2, t3 = st.columns(3)
+        temp1 = t1.number_input("Punto 1", key="m3_t1", step=0.5, format="%.1f")
+        temp2 = t2.number_input("Punto 2", key="m3_t2", step=0.5, format="%.1f")
+        temp3 = t3.number_input("Punto 3", key="m3_t3", step=0.5, format="%.1f")
+        temp_prom = (temp1 + temp2 + temp3) / 3
+        st.caption(f"Temperatura promedio: **{temp_prom:.1f} °C**")
+
+        st.markdown("**pH** — 3 puntos de medición de la pila")
+        p1, p2, p3 = st.columns(3)
+        ph1 = p1.number_input("Punto 1", key="m3_ph1", step=0.1, format="%.1f")
+        ph2 = p2.number_input("Punto 2", key="m3_ph2", step=0.1, format="%.1f")
+        ph3 = p3.number_input("Punto 3", key="m3_ph3", step=0.1, format="%.1f")
+        ph_prom = (ph1 + ph2 + ph3) / 3
+        st.caption(f"pH promedio: **{ph_prom:.2f}**")
+
+        col_h, col_v = st.columns(2)
+        with col_h:
+            humedad_seg = st.number_input("Humedad medida de la pila (%)", min_value=0.0, max_value=100.0, step=1.0, key="m3_hum")
+        with col_v:
+            volteo_seg = st.checkbox("¿Se realizó volteo en esta fecha?", key="m3_volteo")
+
+        if st.button("✅ Registrar seguimiento", type="primary"):
+            ref_fase = FASES_COMPOSTAJE[fase_seg]
+
+            def evaluar_parametro(valor, rango):
+                if valor < rango[0]:
+                    return "bajo"
+                elif valor > rango[1]:
+                    return "alto"
+                else:
+                    return "normal"
+
+            eval_temp = evaluar_parametro(temp_prom, ref_fase["temp"])
+            eval_ph = evaluar_parametro(ph_prom, ref_fase["ph"])
+            eval_hum = evaluar_parametro(humedad_seg, ref_fase["humedad"])
+
+            nueva_fila_seg = pd.DataFrame([{
+                "fecha": fecha_seg, "fase": fase_seg,
+                "T1": temp1, "T2": temp2, "T3": temp3, "T_prom": round(temp_prom, 1),
+                "pH1": ph1, "pH2": ph2, "pH3": ph3, "pH_prom": round(ph_prom, 2),
+                "humedad_%": humedad_seg, "volteo": volteo_seg,
+                "eval_temp": eval_temp, "eval_ph": eval_ph, "eval_humedad": eval_hum,
+            }])
+
+            if lote_seg in st.session_state["seguimiento"]:
+                st.session_state["seguimiento"][lote_seg] = pd.concat(
+                    [st.session_state["seguimiento"][lote_seg], nueva_fila_seg], ignore_index=True
+                )
+            else:
+                st.session_state["seguimiento"][lote_seg] = nueva_fila_seg
+
+            st.success(f"Seguimiento registrado para el lote {lote_seg}.")
+
+            st.subheader("2. Resultado de este registro")
+            r1, r2, r3 = st.columns(3)
+            r1.metric("Temperatura promedio", f"{temp_prom:.1f} °C", eval_temp)
+            r2.metric("pH promedio", f"{ph_prom:.2f}", eval_ph)
+            r3.metric("Humedad", f"{humedad_seg:.0f} %", eval_hum)
+
+            st.subheader("Recomendaciones")
+            if eval_temp == "normal":
+                st.success(f"🟢 Temperatura dentro del rango esperado para {fase_seg} ({ref_fase['temp'][0]}-{ref_fase['temp'][1]} °C).")
+            elif eval_temp == "bajo":
+                st.warning(
+                    f"🟡 Temperatura baja para {fase_seg} (esperado {ref_fase['temp'][0]}-{ref_fase['temp'][1]} °C). "
+                    "Puede indicar falta de oxígeno, humedad insuficiente, o que la pila perdió calor; considera voltear."
+                )
+            else:
+                st.warning(
+                    f"🟡 Temperatura alta para {fase_seg} (esperado {ref_fase['temp'][0]}-{ref_fase['temp'][1]} °C). "
+                    "Verifica que no falte oxigenación; un volteo ayuda a liberar calor excesivo."
+                )
+
+            if eval_ph == "normal":
+                st.success(f"🟢 pH dentro del rango esperado ({ref_fase['ph'][0]}-{ref_fase['ph'][1]}).")
+            elif eval_ph == "bajo":
+                st.warning(f"🟡 pH bajo (esperado {ref_fase['ph'][0]}-{ref_fase['ph'][1]}). Puede indicar exceso de material fácilmente fermentable o falta de aireación.")
+            else:
+                st.warning(f"🟡 pH alto (esperado {ref_fase['ph'][0]}-{ref_fase['ph'][1]}). Revisa si hay exceso de material nitrogenado (lodo).")
+
+            if eval_hum == "normal":
+                st.success(f"🟢 Humedad dentro del rango esperado ({ref_fase['humedad'][0]}-{ref_fase['humedad'][1]}%).")
+            elif eval_hum == "bajo":
+                st.warning(f"🟡 Humedad baja (esperado {ref_fase['humedad'][0]}-{ref_fase['humedad'][1]}%). Considera regar la pila.")
+            else:
+                st.warning(f"🟡 Humedad alta (esperado {ref_fase['humedad'][0]}-{ref_fase['humedad'][1]}%). Considera voltear y agregar estructurante seco.")
+
+        # ---- Historial, duración por fase y mini-dashboard -----------
+        if lote_seg in st.session_state["seguimiento"]:
+            df_seg = st.session_state["seguimiento"][lote_seg]
+
+            st.subheader("3. Duración por fase (según lo registrado)")
+            resumen_fases = (
+                df_seg.groupby("fase")["fecha"]
+                .agg(["min", "max", "count"])
+                .rename(columns={"min": "primer registro", "max": "último registro", "count": "N° mediciones"})
+            )
+            resumen_fases["días observados"] = (
+                pd.to_datetime(resumen_fases["último registro"]) - pd.to_datetime(resumen_fases["primer registro"])
+            ).dt.days + 1
+            st.dataframe(resumen_fases, use_container_width=True)
+            dias_totales = (pd.to_datetime(df_seg["fecha"].max()) - pd.to_datetime(df_seg["fecha"].min())).days + 1
+            st.caption(f"Días totales de proceso registrados para este lote: **{dias_totales}**")
+
+            st.subheader("4. Evolución en el tiempo")
+            df_chart = df_seg.copy()
+            df_chart["fecha"] = pd.to_datetime(df_chart["fecha"])
+            df_chart = df_chart.set_index("fecha").sort_index()
+
+            cg1, cg2, cg3 = st.columns(3)
+            with cg1:
+                st.caption("Temperatura promedio (°C)")
+                st.line_chart(df_chart["T_prom"])
+            with cg2:
+                st.caption("pH promedio")
+                st.line_chart(df_chart["pH_prom"])
+            with cg3:
+                st.caption("Humedad (%)")
+                st.line_chart(df_chart["humedad_%"])
+
+            st.subheader("5. Registro completo del lote")
+            st.dataframe(df_seg, use_container_width=True)
+            total_volteos = int(df_seg["volteo"].sum())
+            st.caption(f"Volteos registrados en total para este lote: **{total_volteos}**")
+
+            csv_seg = df_seg.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Descargar seguimiento de este lote (CSV)",
+                data=csv_seg, file_name=f"{lote_seg}_seguimiento.csv", mime="text/csv",
+            )
+        else:
+            st.info("Aún no hay registros de seguimiento para este lote.")
