@@ -50,7 +50,7 @@ CN_MIN_DEFAULT = 25.0
 CN_MAX_DEFAULT = 35.0
 
 # Lista de operadores para el selector (Adrian Carpio, Fernando Valdivia, Mishel Ruiz; "Otro" siempre queda disponible por si falta alguien).
-OPERADORES = ["Operador 1", "Operador 2", "Operador 3", "Otro"]
+OPERADORES = ["Adrian Carpio", "Fernando Valdivia", "Mishel Ruiz", "Otro"]
 
 # Prefijo y año para los códigos de lote autogenerados, ej: CMP-2026-001
 PREFIJO_LOTE = "CMP"
