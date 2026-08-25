@@ -31,7 +31,7 @@ st.set_page_config(
 
 # Colores de marca (Anglo American)
 COLOR_AZUL = "#031795"
-COLOR_AZUL_CLARO = "#ABCBFA"
+COLOR_AZUL_CLARO = "#347FF6"
 COLOR_ROJO = "#FE0000"
 
 # ---------------------------------------------------------------
@@ -111,7 +111,7 @@ if "seguimiento" not in st.session_state:
 
 # Lista de operadores para el selector (edítala aquí con los nombres reales
 # de tu equipo; "Otro" siempre queda disponible por si falta alguien).
-OPERADORES = ["Operador 1", "Operador 2", "Operador 3", "Otro"]
+OPERADORES = ["Adrian Carpio", "Fernando Valdivia", "Mishel Ruiz", "Otro"]
 
 # Prefijo para los códigos de lote autogenerados, ej: CMP-2026-001
 PREFIJO_LOTE = "CMP"
@@ -254,7 +254,7 @@ tab_m1, tab_m2, tab_m3 = st.tabs([
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
 with tab_m1:
-    encabezado("🌱 Módulo 1 — Formulación de Lotes")
+    encabezado("Módulo 1 — Formulación de Lotes")
     st.caption("Registro de ingresos de residuos por lote, con cálculo automático de humedad y relación C/N")
 
     tab_nuevo, tab_historial = st.tabs(["➕ Nuevo ingreso a un lote", "📋 Historial de lotes"])
