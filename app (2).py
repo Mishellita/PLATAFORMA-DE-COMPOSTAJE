@@ -142,7 +142,7 @@ st.sidebar.caption(
 # ---------------------------------------------------------------
 # 6. INTERFAZ PRINCIPAL
 # ---------------------------------------------------------------
-st.title("🌱 Módulo 1 — Formulación de Lotes")
+st.title("Módulo 1 — Formulación de Lotes")
 st.caption("Registro de ingresos de residuos por lote, con cálculo automático de humedad y relación C/N")
 
 tab_nuevo, tab_historial = st.tabs(["➕ Nuevo ingreso a un lote", "📋 Historial de lotes"])
