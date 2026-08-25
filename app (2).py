@@ -368,9 +368,23 @@ with tab_m1:
 # =================================================================
 with tab_m2:
     encabezado("🪵 Módulo 2 — Capacidad de Material Estructurante")
-    st.caption("Planifica cuánto aserrín o cartón necesitas según los residuos disponibles, y compara escenarios")
+    st.caption("Planifica cuánto aserrín o cartón adicional necesitas para una cantidad de lodo a procesar")
 
-    st.subheader("1. Cantidades de residuos disponibles (toneladas)")
+    with st.expander("ℹ️ ¿Qué hace este módulo? (léelo antes de calcular)"):
+        st.write(
+            "Este módulo estima cuánto material estructurante (aserrín y/o cartón adicional) "
+            "se necesita para que la mezcla llegue a una humedad y relación C/N adecuadas, "
+            "considerando que va a ingresar más lodo deshidratado de PTAR a la planta."
+        )
+        st.write(
+            "**Sobre la referencia 60/20/20:** los operadores han declarado trabajar históricamente "
+            "con 60% residuos orgánicos, 20% lodo y 20% cartón. Esa referencia se muestra aquí "
+            "**solo como comparación histórica**, no como una regla obligatoria — la mezcla real "
+            "puede y debe ajustarse según lo que arrojen los cálculos de humedad y C/N."
+        )
+
+    # ---- Entradas -------------------------------------------------
+    st.subheader("1. Datos de la planificación")
     col1, col2 = st.columns(2)
     with col1:
         operador2_sel = st.selectbox("Operador", OPERADORES, key="m2_operador_sel")
@@ -381,157 +395,245 @@ with tab_m2:
     with col2:
         fecha2 = st.date_input("Fecha de planificación", value=date.today(), key="m2_fecha")
 
-    cols_base = st.columns(len(INSUMOS_BASE))
-    disponibles_ton = {}
-    for col, codigo in zip(cols_base, INSUMOS_BASE):
-        ref = INSUMOS_REF[codigo]
-        with col:
-            disponibles_ton[codigo] = st.number_input(
-                f"{ref['nombre']} ({codigo})", min_value=0.0, step=0.5, format="%.2f", key=f"m2_disp_{codigo}"
-            )
+    st.caption("Residuos que ingresan siempre a la mezcla:")
+    col_ro, col_ca, col_ld = st.columns(3)
+    with col_ro:
+        ro_ton = st.number_input("Residuos orgánicos (RO, t)", min_value=0.0, step=0.5, format="%.2f", key="m2_ro")
+    with col_ca:
+        ca_ton = st.number_input("Cartón ya considerado (CA, t)", min_value=0.0, step=0.5, format="%.2f", key="m2_ca")
+    with col_ld:
+        lodo_ton = st.number_input("Lodo deshidratado a procesar (LD, t)", min_value=0.0, step=0.5, format="%.2f", key="m2_ld")
 
-    cartón_disponible_ton = st.number_input(
-        "Cartón (CA) ya disponible (opcional, si ya tienen algo aparte del que se calcule)",
-        min_value=0.0, step=0.5, format="%.2f", key="m2_disp_CA"
+    rod_ton = st.number_input(
+        "Residuos orgánicos deshidratados (ROD, t) — material complementario, ingresa en poca cantidad",
+        min_value=0.0, step=0.1, format="%.2f", key="m2_rod"
     )
 
-    total_base_ton = sum(disponibles_ton.values())
+    total_base_ton = ro_ton + ca_ton + lodo_ton
 
     if total_base_ton > 0:
-        st.subheader("2. Proporción declarada vs. proporción real ingresada")
-        st.caption("Los operadores declaran trabajar con 60% orgánico / 20% lodo / 20% cartón")
 
-        pct_ro_real = (disponibles_ton.get("RO", 0) / total_base_ton) * 100
-        pct_ld_real = (disponibles_ton.get("LD", 0) / total_base_ton) * 100
-        # CA no está en INSUMOS_BASE porque se calcula; usamos lo disponible como referencia si lo hay
-        pct_ca_real = (cartón_disponible_ton / (total_base_ton + cartón_disponible_ton) * 100) if cartón_disponible_ton > 0 else 0
+        def mezcla_ton(cant_ton: dict):
+            cant_kg = {k: v * 1000 for k, v in cant_ton.items()}
+            masa_kg, hum, c_kg, n_kg, cn = calcular_mezcla(cant_kg)
+            return {"masa_ton": masa_kg / 1000, "humedad": hum, "cn": cn, "carbono_kg": c_kg, "nitrogeno_kg": n_kg}
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Residuos orgánicos", f"{pct_ro_real:.0f}%", f"declarado {PROPORCION_DECLARADA['RO']:.0f}%")
-        c2.metric("Lodo PTAR", f"{pct_ld_real:.0f}%", f"declarado {PROPORCION_DECLARADA['LD']:.0f}%")
-        c3.metric("Cartón", f"{pct_ca_real:.0f}%", f"declarado {PROPORCION_DECLARADA['CA']:.0f}%")
+        insumos_planificados = {"RO": ro_ton, "ROD": rod_ton, "CA": ca_ton, "LD": lodo_ton}
+        mezcla_base = mezcla_ton(insumos_planificados)
 
-        desvio_ro = abs(pct_ro_real - PROPORCION_DECLARADA["RO"])
-        desvio_ld = abs(pct_ld_real - PROPORCION_DECLARADA["LD"])
-        if desvio_ro > 10 or desvio_ld > 10:
-            alerta_txt = (
-                f"La proporción ingresada (RO {pct_ro_real:.0f}% / LD {pct_ld_real:.0f}%) "
-                f"se aleja más de 10 puntos de lo declarado (60/20/20). Fecha: {fecha2}."
-            )
-            st.warning(f"⚠️ Desviación de proporción declarada. {alerta_txt}")
-            st.session_state["consultas_aserrin"].append({
-                "fecha": fecha2, "tipo": "alerta_proporcion", "detalle": alerta_txt
-            })
+        # --- Referencia histórica 60/20/20 (solo informativa) -------
+        ro_hist = total_base_ton * (PROPORCION_DECLARADA["RO"] / 100)
+        ld_hist = total_base_ton * (PROPORCION_DECLARADA["LD"] / 100)
+        ca_hist = total_base_ton * (PROPORCION_DECLARADA["CA"] / 100)
+
+        pct_ro_real = (ro_ton / total_base_ton) * 100
+        pct_ca_real = (ca_ton / total_base_ton) * 100
+        pct_ld_real = (lodo_ton / total_base_ton) * 100
+
+        st.subheader("2. Referencia histórica vs. mezcla real ingresada")
+        rc1, rc2, rc3 = st.columns(3)
+        rc1.metric("Residuos orgánicos", f"{pct_ro_real:.0f}%", f"histórico {PROPORCION_DECLARADA['RO']:.0f}%")
+        rc2.metric("Cartón", f"{pct_ca_real:.0f}%", f"histórico {PROPORCION_DECLARADA['CA']:.0f}%")
+        rc3.metric("Lodo", f"{pct_ld_real:.0f}%", f"histórico {PROPORCION_DECLARADA['LD']:.0f}%")
+        st.caption(
+            "Esta comparación es solo informativa: muestra qué tan parecida es la mezcla real "
+            "a la práctica histórica 60/20/20, sin que eso implique que deba corregirse."
+        )
+        if rod_ton > 0:
+            st.caption(f"Se incluyen además {rod_ton:.2f} t de ROD, que no forma parte de la referencia 60/20/20.")
+
+        # --- Alternativas --------------------------------------------
+        st.subheader("3. Alternativas de material estructurante")
+
+        # Alternativa A: solo aserrín
+        as_solo_ton = kg_requeridos_estructurante(mezcla_base["carbono_kg"], mezcla_base["nitrogeno_kg"], "AS", cn_target) / 1000
+        mezcla_a = mezcla_ton({**insumos_planificados, "AS": as_solo_ton})
+
+        # Alternativa B: solo cartón adicional
+        ca_adicional_ton = kg_requeridos_estructurante(mezcla_base["carbono_kg"], mezcla_base["nitrogeno_kg"], "CA", cn_target) / 1000
+        mezcla_b = mezcla_ton({**insumos_planificados, "CA": ca_ton + ca_adicional_ton})
+
+        # Alternativa C: primero cierra la brecha de cartón hasta la referencia histórica,
+        # y con lo que falte para el C/N objetivo, completa con aserrín.
+        ca_combinado_ton = max(0.0, ca_hist - ca_ton)
+        mezcla_con_ca_ref = mezcla_ton({**insumos_planificados, "CA": ca_ton + ca_combinado_ton})
+        as_combinado_ton = kg_requeridos_estructurante(mezcla_con_ca_ref["carbono_kg"], mezcla_con_ca_ref["nitrogeno_kg"], "AS", cn_target) / 1000
+        mezcla_c = mezcla_ton({**insumos_planificados, "CA": ca_ton + ca_combinado_ton, "AS": as_combinado_ton})
+
+        alt1, alt2, alt3 = st.columns(3)
+        with alt1:
+            st.metric("Alternativa A — Aserrín", f"{as_solo_ton:.2f} t")
+            st.caption("Ajuste exclusivamente con aserrín.")
+        with alt2:
+            st.metric("Alternativa B — Cartón adicional", f"{ca_adicional_ton:.2f} t")
+            st.caption("Ajuste exclusivamente con cartón.")
+        with alt3:
+            st.metric("Alternativa C — Cartón + aserrín", f"{ca_combinado_ton:.2f} t CA + {as_combinado_ton:.2f} t AS")
+            st.caption("Primero acerca el cartón a la referencia histórica, luego completa con aserrín.")
+
+        if lodo_ton > 0:
+            ind_a = as_solo_ton / lodo_ton
+            ind_b = ca_adicional_ton / lodo_ton
+            ind_c = (ca_combinado_ton + as_combinado_ton) / lodo_ton
         else:
-            st.success("La proporción ingresada está razonablemente cerca de lo declarado (60/20/20).")
+            ind_a = ind_b = ind_c = 0
 
-        # --- Cálculo de escenarios ---------------------------------
-        st.subheader("3. Comparación de escenarios")
-
-        cantidades_base_kg = {c: disponibles_ton.get(c, 0) * 1000 for c in INSUMOS_BASE}
-        masa_base, hum_base, c_base, n_base, cn_base = calcular_mezcla(cantidades_base_kg)
-
-        # Escenario A: CON ASERRÍN (se calcula cuánto AS agregar)
-        as_kg_necesario = kg_requeridos_estructurante(c_base, n_base, "AS", cn_target)
-        mezcla_con_as = dict(cantidades_base_kg)
-        mezcla_con_as["AS"] = as_kg_necesario
-        masa_as, hum_as, _, _, cn_as = calcular_mezcla(mezcla_con_as)
-
-        # Escenario B: SIN ASERRÍN (mezcla base tal cual, sin ajuste)
-        masa_sin, hum_sin, _, _, cn_sin = masa_base, hum_base, None, None, cn_base
-
-        # Escenario C: SOLO CARTÓN (se calcula cuánto CA agregar en vez de AS)
-        ca_kg_necesario = kg_requeridos_estructurante(c_base, n_base, "CA", cn_target)
-        mezcla_con_ca = dict(cantidades_base_kg)
-        mezcla_con_ca["CA"] = ca_kg_necesario
-        masa_ca, hum_ca, _, _, cn_ca = calcular_mezcla(mezcla_con_ca)
+        # --- Tabla comparativa técnica ---------------------------------
+        st.subheader("4. Comparación técnica de escenarios")
 
         tabla_comparativa = pd.DataFrame([
             {
-                "Escenario": "Con aserrín",
-                "Aserrín a solicitar (t)": round(as_kg_necesario / 1000, 2),
-                "Cartón a solicitar (t)": 0,
-                "Masa total (t)": round(masa_as / 1000, 2),
-                "Humedad (%)": round(hum_as, 1),
-                "Relación C/N": round(cn_as, 1) if cn_as != float("inf") else None,
+                "Escenario": "Mezcla sin ajuste",
+                "RO (t)": round(ro_ton, 2), "ROD (t)": round(rod_ton, 2),
+                "Cartón total (t)": round(ca_ton, 2), "Lodo (t)": round(lodo_ton, 2),
+                "Aserrín (t)": 0.0, "Estructurante / t lodo": 0.0,
+                "Masa total (t)": round(mezcla_base["masa_ton"], 2),
+                "Humedad (%)": round(mezcla_base["humedad"], 1),
+                "Relación C/N": round(mezcla_base["cn"], 1) if mezcla_base["cn"] != float("inf") else None,
             },
             {
-                "Escenario": "Sin aserrín (mezcla base)",
-                "Aserrín a solicitar (t)": 0,
-                "Cartón a solicitar (t)": 0,
-                "Masa total (t)": round(masa_sin / 1000, 2),
-                "Humedad (%)": round(hum_sin, 1),
-                "Relación C/N": round(cn_sin, 1) if cn_sin != float("inf") else None,
+                "Escenario": "Solo aserrín",
+                "RO (t)": round(ro_ton, 2), "ROD (t)": round(rod_ton, 2),
+                "Cartón total (t)": round(ca_ton, 2), "Lodo (t)": round(lodo_ton, 2),
+                "Aserrín (t)": round(as_solo_ton, 2), "Estructurante / t lodo": round(ind_a, 2),
+                "Masa total (t)": round(mezcla_a["masa_ton"], 2),
+                "Humedad (%)": round(mezcla_a["humedad"], 1),
+                "Relación C/N": round(mezcla_a["cn"], 1) if mezcla_a["cn"] != float("inf") else None,
             },
             {
-                "Escenario": "Solo cartón",
-                "Aserrín a solicitar (t)": 0,
-                "Cartón a solicitar (t)": round(ca_kg_necesario / 1000, 2),
-                "Masa total (t)": round(masa_ca / 1000, 2),
-                "Humedad (%)": round(hum_ca, 1),
-                "Relación C/N": round(cn_ca, 1) if cn_ca != float("inf") else None,
+                "Escenario": "Solo cartón adicional",
+                "RO (t)": round(ro_ton, 2), "ROD (t)": round(rod_ton, 2),
+                "Cartón total (t)": round(ca_ton + ca_adicional_ton, 2), "Lodo (t)": round(lodo_ton, 2),
+                "Aserrín (t)": 0.0, "Estructurante / t lodo": round(ind_b, 2),
+                "Masa total (t)": round(mezcla_b["masa_ton"], 2),
+                "Humedad (%)": round(mezcla_b["humedad"], 1),
+                "Relación C/N": round(mezcla_b["cn"], 1) if mezcla_b["cn"] != float("inf") else None,
+            },
+            {
+                "Escenario": "Cartón + aserrín",
+                "RO (t)": round(ro_ton, 2), "ROD (t)": round(rod_ton, 2),
+                "Cartón total (t)": round(ca_ton + ca_combinado_ton, 2), "Lodo (t)": round(lodo_ton, 2),
+                "Aserrín (t)": round(as_combinado_ton, 2), "Estructurante / t lodo": round(ind_c, 2),
+                "Masa total (t)": round(mezcla_c["masa_ton"], 2),
+                "Humedad (%)": round(mezcla_c["humedad"], 1),
+                "Relación C/N": round(mezcla_c["cn"], 1) if mezcla_c["cn"] != float("inf") else None,
+            },
+            {
+                "Escenario": "Referencia histórica 60/20/20",
+                "RO (t)": round(ro_hist, 2), "ROD (t)": 0.0,
+                "Cartón total (t)": round(ca_hist, 2), "Lodo (t)": round(ld_hist, 2),
+                "Aserrín (t)": 0.0, "Estructurante / t lodo": 0.0,
+                "Masa total (t)": round(total_base_ton, 2),
+                "Humedad (%)": None, "Relación C/N": None,
             },
         ])
 
         st.dataframe(tabla_comparativa, use_container_width=True, hide_index=True)
         st.caption(
-            f"Cálculo hecho para alcanzar una relación C/N objetivo de {cn_target:.0f}:1 "
+            f"Cálculo hecho para una relación C/N objetivo de {cn_target:.0f}:1 "
             f"(punto medio del rango {cn_min:.0f}-{cn_max:.0f} configurado en la barra lateral)."
         )
-
         csv_comp = tabla_comparativa.to_csv(index=False).encode("utf-8")
         st.download_button(
-            "⬇️ Descargar tabla comparativa (CSV)",
-            data=csv_comp,
-            file_name=f"comparativo_estructurante_{fecha2}.csv",
-            mime="text/csv",
+            "⬇️ Descargar tabla comparativa (CSV)", data=csv_comp,
+            file_name=f"comparativo_estructurante_{fecha2}.csv", mime="text/csv",
         )
+
+        # --- Evaluación de viabilidad -----------------------------------
+        def evaluar_estado(mezcla):
+            if not (cn_min <= mezcla["cn"] <= cn_max):
+                return "REFORMULAR"
+            if mezcla["humedad"] < hum_min:
+                return "HUMEDAD BAJA"
+            elif mezcla["humedad"] <= hum_min + 2:
+                return "VIABLE (cerca del límite mínimo)"
+            elif mezcla["humedad"] > hum_max:
+                return "HUMEDAD ALTA"
+            elif mezcla["humedad"] >= hum_max - 2:
+                return "VIABLE (cerca del límite máximo)"
+            else:
+                return "VIABLE"
+
+        estado_a, estado_b, estado_c = evaluar_estado(mezcla_a), evaluar_estado(mezcla_b), evaluar_estado(mezcla_c)
+
+        st.subheader("5. Lectura para la toma de decisión")
+        viables = ("VIABLE", "VIABLE (cerca del límite mínimo)", "VIABLE (cerca del límite máximo)")
+        if estado_c == "VIABLE":
+            st.success("🟢 La alternativa combinada (cartón + aserrín) mantiene humedad y C/N dentro de rango, con margen operativo.")
+        elif estado_a == "VIABLE":
+            st.success("🟢 La alternativa con aserrín mantiene humedad y C/N dentro de rango, con margen operativo.")
+        elif estado_b == "VIABLE":
+            st.success("🟢 La alternativa con cartón adicional mantiene humedad y C/N dentro de rango, con margen operativo.")
+        elif estado_c in viables:
+            st.warning(f"🟡 La alternativa combinada es admisible, pero su estado es: {estado_c}.")
+        elif estado_a in viables:
+            st.warning(f"🟡 La alternativa con aserrín es admisible, pero su estado es: {estado_a}.")
+        elif estado_b in viables:
+            st.warning(f"🟡 La alternativa con cartón es admisible, pero su estado es: {estado_b}.")
+        else:
+            st.warning("⚠️ Ninguna alternativa alcanza a la vez humedad y C/N adecuados. Revisa la combinación de materiales.")
+
+        det1, det2, det3 = st.columns(3)
+        det1.metric("Estado — Solo aserrín", estado_a)
+        det2.metric("Estado — Solo cartón", estado_b)
+        det3.metric("Estado — Cartón + aserrín", estado_c)
+
+        with st.expander("¿Cómo interpretar las alternativas?"):
+            st.write("**Solo aserrín:** cuánto aserrín sería necesario si se usa como único material corrector del C/N.")
+            st.write("**Solo cartón:** cuánto cartón adicional se necesitaría si se usa únicamente este material.")
+            st.write("**Cartón + aserrín:** primero aprovecha el cartón hasta acercarse a la referencia histórica, y luego usa aserrín como complemento.")
+            st.write("Una cantidad elevada de estructurante no significa que el cálculo esté mal: puede indicar que los materiales base están lejos de las condiciones objetivo.")
+            st.write(f"Rango de humedad usado: {hum_min:.0f}%–{hum_max:.0f}%. Rango C/N usado: {cn_min:.0f}–{cn_max:.0f}.")
 
         # --- Selección y generación de reporte -----------------------
-        st.subheader("4. Elegir escenario y generar solicitud")
-        escenario_elegido = st.radio(
-            "¿Qué escenario vas a solicitar?",
-            tabla_comparativa["Escenario"].tolist(),
-            key="m2_escenario_radio",
-        )
+        st.subheader("6. Elegir alternativa y generar solicitud")
+        alternativa_map = {
+            "Solo aserrín": (as_solo_ton, 0.0, mezcla_a),
+            "Solo cartón adicional": (0.0, ca_adicional_ton, mezcla_b),
+            "Cartón + aserrín": (as_combinado_ton, ca_combinado_ton, mezcla_c),
+        }
+        alternativa_elegida = st.radio("¿Qué alternativa vas a solicitar?", list(alternativa_map.keys()), key="m2_alt_radio")
 
         if st.button("📄 Generar reporte de solicitud", type="primary"):
-            fila = tabla_comparativa[tabla_comparativa["Escenario"] == escenario_elegido].iloc[0]
-
+            as_sol, ca_sol, mezcla_sel = alternativa_map[alternativa_elegida]
             reporte = f"""SOLICITUD DE MATERIAL ESTRUCTURANTE - PLANTA DE COMPOSTAJE
 Fecha de planificación: {fecha2}
 Operador: {operador2}
-Escenario elegido: {escenario_elegido}
+Alternativa elegida: {alternativa_elegida}
 
-Residuos disponibles considerados:
+Residuos considerados:
+  - Residuos orgánicos: {ro_ton:.2f} t
+  - Residuos orgánicos deshidratados: {rod_ton:.2f} t
+  - Cartón (ya considerado): {ca_ton:.2f} t
+  - Lodo deshidratado a procesar: {lodo_ton:.2f} t
+
+Material adicional a solicitar:
+  - Aserrín: {as_sol:.2f} t
+  - Cartón adicional: {ca_sol:.2f} t
+
+Resultado estimado de la mezcla:
+  - Masa total: {mezcla_sel['masa_ton']:.2f} t
+  - Humedad estimada: {mezcla_sel['humedad']:.1f} %
+  - Relación C/N estimada: {mezcla_sel['cn']:.1f}:1
+
+Referencia histórica de planta (60/20/20, solo informativa):
+  - RO: {ro_hist:.2f} t | Cartón: {ca_hist:.2f} t | Lodo: {ld_hist:.2f} t
+
+(Reporte generado automáticamente por la plataforma de gestión de compostaje.
+Valores estimados según formulación de referencia; el aserrín usa propiedades
+referenciales de literatura y debe recalibrarse cuando exista caracterización real.)
 """
-            for codigo in INSUMOS_BASE:
-                reporte += f"  - {INSUMOS_REF[codigo]['nombre']}: {disponibles_ton.get(codigo, 0):.2f} t\n"
-
-            reporte += f"\nMaterial a solicitar:\n"
-            reporte += f"  - Aserrín: {fila['Aserrín a solicitar (t)']:.2f} t\n"
-            reporte += f"  - Cartón adicional: {fila['Cartón a solicitar (t)']:.2f} t\n"
-            reporte += f"\nResultado estimado de la mezcla:\n"
-            reporte += f"  - Masa total: {fila['Masa total (t)']:.2f} t\n"
-            reporte += f"  - Humedad estimada: {fila['Humedad (%)']:.1f} %\n"
-            reporte += f"  - Relación C/N estimada: {fila['Relación C/N']}:1\n"
-            reporte += f"\n(Reporte generado automáticamente por la plataforma de gestión de compostaje. "
-            reporte += f"Valores estimados según formulación de referencia, sujetos a validación en campo.)\n"
-
-            st.text_area("Vista previa del reporte (puedes copiarlo a un correo)", reporte, height=280)
+            st.text_area("Vista previa del reporte (puedes copiarlo a un correo)", reporte, height=320)
             st.download_button(
-                "⬇️ Descargar reporte (TXT)",
-                data=reporte.encode("utf-8"),
-                file_name=f"solicitud_estructurante_{fecha2}.txt",
-                mime="text/plain",
+                "⬇️ Descargar reporte (TXT)", data=reporte.encode("utf-8"),
+                file_name=f"solicitud_estructurante_{fecha2}.txt", mime="text/plain",
             )
-
             st.session_state["consultas_aserrin"].append({
                 "fecha": fecha2, "tipo": "solicitud_generada",
-                "detalle": f"{escenario_elegido}: aserrín {fila['Aserrín a solicitar (t)']:.2f} t, cartón {fila['Cartón a solicitar (t)']:.2f} t",
+                "detalle": f"{alternativa_elegida}: aserrín {as_sol:.2f} t, cartón {ca_sol:.2f} t",
             })
     else:
-        st.info("Ingresa al menos una cantidad de residuos disponibles para ver los escenarios.")
+        st.info("Ingresa al menos residuos orgánicos, cartón o lodo para ver las alternativas.")
 
     # --- Historial de consultas de este módulo ---------------------------
     st.divider()
