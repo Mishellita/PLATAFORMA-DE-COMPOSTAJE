@@ -63,7 +63,7 @@ PROPORCION_DECLARADA = {"RO": 60.0, "LD": 20.0, "CA": 20.0}
 
 # Lista de operadores para el selector (edítala aquí con los nombres reales
 # de tu equipo; "Otro" siempre queda disponible por si falta alguien).
-OPERADORES = ["Adrian Carpio", "Fernando Valdivia", "Mishel Ruiz", "Otro"]
+OPERADORES = ["Operador 1", "Operador 2", "Operador 3", "Otro"]
 
 # Prefijo para los códigos de lote autogenerados, ej: CMP-2026-001
 PREFIJO_LOTE = "CMP"
@@ -139,19 +139,21 @@ def kg_requeridos_estructurante(fixed_carbono_kg, fixed_nitrogeno_kg, codigo_est
         cn_target = (C_fijo + x * c_insumo) / (N_fijo + x * n_insumo)
     donde x son los kg del estructurante a agregar, y c_insumo/n_insumo
     son el carbono y nitrógeno (en base seca) por kg de ese insumo.
+    Resolviendo para x:
+        x = (cn_target * N_fijo - C_fijo) / (c_insumo - cn_target * n_insumo)
+    Si x resulta negativo, significa que la mezcla ya está en o por
+    encima del C/N objetivo y no hace falta agregar nada (se devuelve 0).
     """
     ref = INSUMOS_REF[codigo_estructurante]
     fraccion_seca = 1 - ref["humedad"] / 100
     c_insumo = fraccion_seca * (ref["carbono"] / 100)   # kg carbono por kg insumo
     n_insumo = fraccion_seca * (ref["nitrogeno"] / 100)  # kg nitrógeno por kg insumo
 
-    denominador = (cn_target * n_insumo) - c_insumo
-    if denominador <= 0:
-        # El insumo no tiene suficiente carbono relativo para mover la
-        # relación C/N hacia el objetivo con esta fórmula (caso raro).
+    denominador = c_insumo - (cn_target * n_insumo)
+    if denominador == 0:
         return 0.0
 
-    x_kg = (fixed_carbono_kg - cn_target * fixed_nitrogeno_kg) / denominador
+    x_kg = (cn_target * fixed_nitrogeno_kg - fixed_carbono_kg) / denominador
     return max(0.0, x_kg)
 
 
@@ -195,15 +197,15 @@ def encabezado(texto):
 # 6. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
 tab_m1, tab_m2 = st.tabs([
-    "Módulo 1 — Formulación de Lotes",
-    "Módulo 2 — Capacidad de Estructurante",
+    "🌾 Módulo 1 — Formulación de Lotes",
+    "🪵 Módulo 2 — Capacidad de Estructurante",
 ])
 
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
 with tab_m1:
-    encabezado("Módulo 1 — Formulación de Lotes")
+    encabezado("🌱 Módulo 1 — Formulación de Lotes")
     st.caption("Registro de ingresos de residuos por lote, con cálculo automático de humedad y relación C/N")
 
     tab_nuevo, tab_historial = st.tabs(["➕ Nuevo ingreso a un lote", "📋 Historial de lotes"])
