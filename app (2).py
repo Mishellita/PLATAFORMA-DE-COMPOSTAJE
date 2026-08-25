@@ -61,6 +61,54 @@ CN_MAX_DEFAULT = 35.0
 # Proporción declarada históricamente por los operadores (60/20/20)
 PROPORCION_DECLARADA = {"RO": 60.0, "LD": 20.0, "CA": 20.0}
 
+# ---------------------------------------------------------------
+# Referencia de fases del proceso de compostaje (literatura general:
+# Rynk et al., "The Composting Handbook"; guías FAO de compostaje).
+# Rangos aproximados — deben validarse con las condiciones reales de
+# la planta (altitud 3000 msnm), tal como se ajusta en la barra lateral
+# para la formulación inicial.
+# ---------------------------------------------------------------
+FASES_COMPOSTAJE = {
+    "Mesófila I": {
+        "temp": (10, 40),
+        "ph": (6.0, 7.5),
+        "humedad": (50, 60),
+        "microorganismos": "Bacterias y hongos mesófilos, en rápida multiplicación al inicio del proceso.",
+        "duracion": "2 a 5 días",
+        "descripcion": "Arranque del proceso: la pila empieza a calentarse por la actividad microbiana inicial.",
+    },
+    "Termófila": {
+        "temp": (45, 70),
+        "ph": (7.5, 9.0),
+        "humedad": (45, 60),
+        "microorganismos": "Bacterias y actinomicetos termófilos; esta fase es clave para eliminar patógenos y semillas de maleza.",
+        "duracion": "1 a 4 semanas (según manejo y frecuencia de volteos)",
+        "descripcion": "Fase de mayor actividad y temperatura; se recomienda mantener oxigenación con volteos frecuentes.",
+    },
+    "Mesófila II (enfriamiento)": {
+        "temp": (20, 45),
+        "ph": (7.0, 8.5),
+        "humedad": (40, 55),
+        "microorganismos": "Reaparecen bacterias y hongos mesófilos que continúan degradando material más resistente.",
+        "duracion": "1 a 2 semanas",
+        "descripcion": "La temperatura desciende gradualmente conforme se agota el material fácilmente degradable.",
+    },
+    "Maduración": {
+        "temp": (15, 35),
+        "ph": (6.5, 8.5),
+        "humedad": (30, 45),
+        "microorganismos": "Comunidad microbiana estabilizada; en pilas abiertas puede aparecer macrofauna (lombrices, insectos).",
+        "duracion": "4 a 12 semanas",
+        "descripcion": "Etapa de estabilización final; el compost pierde temperatura y se acerca a la temperatura ambiente.",
+    },
+}
+
+# ---------------------------------------------------------------
+# "MEMORIA" del Módulo 3 (mientras la app está abierta)
+# ---------------------------------------------------------------
+if "seguimiento" not in st.session_state:
+    st.session_state["seguimiento"] = {}
+
 # Lista de operadores para el selector (edítala aquí con los nombres reales
 # de tu equipo; "Otro" siempre queda disponible por si falta alguien).
 OPERADORES = ["Operador 1", "Operador 2", "Operador 3", "Otro"]
@@ -196,9 +244,10 @@ def encabezado(texto):
 # ---------------------------------------------------------------
 # 6. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
-tab_m1, tab_m2 = st.tabs([
+tab_m1, tab_m2, tab_m3 = st.tabs([
     "🌾 Módulo 1 — Formulación de Lotes",
     "🪵 Módulo 2 — Capacidad de Estructurante",
+    "🌡️ Módulo 3 — Seguimiento de Pilas",
 ])
 
 # =================================================================
@@ -364,6 +413,7 @@ with tab_m1:
                 "Este historial no se sobrescribe: cada ingreso agrega una fila nueva, "
                 "para mostrar la evolución completa del lote desde el día 1."
             )
+
 # =================================================================
 # MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
 # =================================================================
@@ -378,9 +428,9 @@ with tab_m2:
             "considerando que va a ingresar más lodo deshidratado de PTAR a la planta."
         )
         st.write(
-            "*Sobre la referencia 60/20/20:* los operadores han declarado trabajar históricamente "
+            "**Sobre la referencia 60/20/20:** los operadores han declarado trabajar históricamente "
             "con 60% residuos orgánicos, 20% lodo y 20% cartón. Esa referencia se muestra aquí "
-            "*solo como comparación histórica*, no como una regla obligatoria — la mezcla real "
+            "**solo como comparación histórica**, no como una regla obligatoria — la mezcla real "
             "puede y debe ajustarse según lo que arrojen los cálculos de humedad y C/N."
         )
 
@@ -451,20 +501,20 @@ with tab_m2:
             st.caption(f"Se incluyen además {rod_ton:.2f} t de ROD, que no forma parte de la referencia 60/20/20.")
 
         if lodo_ton > 0:
-            st.markdown("*Diferencia respecto a la referencia histórica* (tomando el lodo como base fija):")
+            st.markdown("**Diferencia respecto a la referencia histórica** (tomando el lodo como base fija):")
             diferencia_ro = ro_ton - ro_hist
             diferencia_ca = ca_ton - ca_hist
             dc1, dc2 = st.columns(2)
             with dc1:
                 if diferencia_ro >= 0:
-                    st.write(f"🟢 RO: *{diferencia_ro:.2f} t por encima* de la referencia ({ro_hist:.2f} t). No implica que deba retirarse.")
+                    st.write(f"🟢 RO: **{diferencia_ro:.2f} t por encima** de la referencia ({ro_hist:.2f} t). No implica que deba retirarse.")
                 else:
-                    st.write(f"🟡 RO: *{abs(diferencia_ro):.2f} t por debajo* de la referencia ({ro_hist:.2f} t).")
+                    st.write(f"🟡 RO: **{abs(diferencia_ro):.2f} t por debajo** de la referencia ({ro_hist:.2f} t).")
             with dc2:
                 if diferencia_ca >= 0:
-                    st.write(f"🟢 Cartón: *{diferencia_ca:.2f} t por encima* de la referencia ({ca_hist:.2f} t).")
+                    st.write(f"🟢 Cartón: **{diferencia_ca:.2f} t por encima** de la referencia ({ca_hist:.2f} t).")
                 else:
-                    st.write(f"🟡 Cartón: *{abs(diferencia_ca):.2f} t por debajo* de la referencia ({ca_hist:.2f} t). Esto es lo que se busca cerrar en la Alternativa C.")
+                    st.write(f"🟡 Cartón: **{abs(diferencia_ca):.2f} t por debajo** de la referencia ({ca_hist:.2f} t). Esto es lo que se busca cerrar en la Alternativa C.")
 
         # --- Alternativas --------------------------------------------
         st.subheader("3. Alternativas de material estructurante")
@@ -597,7 +647,7 @@ with tab_m2:
         else:
             st.warning("⚠️ Ninguna alternativa alcanza a la vez humedad y C/N adecuados. Revisa la combinación de materiales.")
 
-        st.markdown("*Resumen por alternativa* (si eliges esta opción, así quedaría la mezcla):")
+        st.markdown("**Resumen por alternativa** (si eliges esta opción, así quedaría la mezcla):")
 
         def fila_resumen(nombre, mezcla, estructurante_ton_lodo, estado):
             emoji = "🟢" if estado.startswith("VIABLE") else ("🟡" if estado in ("HUMEDAD BAJA", "HUMEDAD ALTA") else "🔴")
@@ -616,9 +666,9 @@ with tab_m2:
         fila_resumen("Cartón + aserrín", mezcla_c, ind_c, estado_c)
 
         with st.expander("¿Cómo interpretar las alternativas?"):
-            st.write("*Solo aserrín:* cuánto aserrín sería necesario si se usa como único material corrector del C/N.")
-            st.write("*Solo cartón:* cuánto cartón adicional se necesitaría si se usa únicamente este material.")
-            st.write("*Cartón + aserrín:* primero aprovecha el cartón hasta acercarse a la referencia histórica, y luego usa aserrín como complemento.")
+            st.write("**Solo aserrín:** cuánto aserrín sería necesario si se usa como único material corrector del C/N.")
+            st.write("**Solo cartón:** cuánto cartón adicional se necesitaría si se usa únicamente este material.")
+            st.write("**Cartón + aserrín:** primero aprovecha el cartón hasta acercarse a la referencia histórica, y luego usa aserrín como complemento.")
             st.write("Una cantidad elevada de estructurante no significa que el cálculo esté mal: puede indicar que los materiales base están lejos de las condiciones objetivo.")
             st.write(f"Rango de humedad usado: {hum_min:.0f}%–{hum_max:.0f}%. Rango C/N usado: {cn_min:.0f}–{cn_max:.0f}.")
 
