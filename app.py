@@ -89,7 +89,20 @@ st.markdown(
     }}
 
     .stApp {{
+        background-color: {COLOR_BLANCO};
+    }}
+
+    [data-testid="stSidebar"] {{
         background-color: {COLOR_FONDO_SUAVE};
+        border-right: 1px solid {COLOR_BORDE};
+    }}
+
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] p {{
+        color: {COLOR_AZUL};
     }}
 
     /* Jerarquía tipográfica: títulos más grandes, texto de cuerpo más pequeño */
@@ -288,7 +301,7 @@ def mostrar_encabezado_app():
             f"""
             <div style="padding-top:4px; padding-bottom:4px;">
                 <div style="color:{COLOR_AZUL}; font-size:26px; font-weight:700; line-height:1.15; margin:0;">
-                    PLATAFORMA PARA LA GESTIÓN DE OMPOSTAJE (Primera edición)
+                    PLATAFORMA PARA LA GESTIÓN DE COMPOSTAJE (Primera edición)
                 </div>
                 <div style="color:{COLOR_TEXTO_SECUNDARIO}; font-size:14px; font-weight:400; margin-top:6px;">
                     Sistema de apoyo para formulaciones y gestión de compostaje
