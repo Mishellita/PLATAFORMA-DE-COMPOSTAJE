@@ -49,13 +49,7 @@ st.markdown(
     .stTabs [data-baseweb="tab-list"] {{
         gap: 4px;
     }}
-    .stTabs [data-baseweb="tab"] {{
-        background-color: #F4F6FB;
-        border-radius: 8px 8px 0 0;
-        padding: 10px 16px;
-        color: {COLOR_SMART_BLUE};
-        font-weight: 500;
-    }}
+    
     .stTabs [aria-selected="true"] {{
         background-color: {COLOR_AZUL_CLARO} !important;
         color: white !important;
@@ -68,22 +62,6 @@ st.markdown(
     .stButton > button[kind="primary"]:hover {{
         background-color: {COLOR_SMART_BLUE};
     }}
-    /* Tarjetas de métricas */
-    div[data-testid="stMetric"] {{
-        background-color: #F4F6FB;
-        border-left: 3px solid {COLOR_TURQUESA};
-        border-radius: 8px;
-        padding: 10px 14px;
-    }}
-    /* Encabezados de sección */
-    h3 {{
-        color: {COLOR_SMART_BLUE};
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 
 def mostrar_encabezado_app():
     """
