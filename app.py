@@ -21,192 +21,469 @@ import pandas as pd
 import os
 from datetime import date
 
-/* ==========================================================
-   PALETA SAFCO / ANGLO AMERICAN
-   ========================================================== */
+# ---------------------------------------------------------------
+# 1. CONFIGURACIÓN DE LA PÁGINA
+# ---------------------------------------------------------------
 
-:root {
-    --aa-blue: #031795;
-    --smart-blue: #347FF6;
-    --light-blue: #ABCBFA;
-    --aa-red: #FE0000;
-    --soft-red: #D90000;
-    --orange: #FE8C00;
-    --yellow: #F5D700;
-    --green: #64B246;
-    --turquoise: #19EBDC;
-    --text: #222222;
-    --muted: #5F5E5A;
-    --border: #E5E7EB;
-    --surface: #F8F9FB;
-    --white: #FFFFFF;
-}
+st.set_page_config(
+    page_title="Gestión de Compostaje",
+    page_icon="🌱",
+    layout="wide"
+)
 
-/* ==========================================================
-   FONDO GENERAL
-   ========================================================== */
 
-[data-testid="stAppViewContainer"] {
-    background: var(--white);
-}
+# ===============================================================
+# PALETA DE COLORES
+# ===============================================================
 
-/* ==========================================================
-   PESTAÑAS / SELECTORES DE MÓDULOS
-   SIN COLOR: FONDO BLANCO
-   ========================================================== */
+COLOR_AZUL = "#031795"          # Azul corporativo
+COLOR_SMART_BLUE = "#347FF6"    # Smart Blue para encabezados de módulos
+COLOR_AZUL_CLARO = "#ABCBFA"
 
-.stTabs [data-baseweb="tab-list"] {
-    gap: 6px;
-    background-color: var(--white);
-    border-bottom: 1px solid var(--border);
-}
+COLOR_ROJO = "#FE0000"          # Botones principales
+COLOR_ROJO_HOVER = "#D90000"
 
-.stTabs [data-baseweb="tab"] {
-    background-color: var(--white) !important;
-    border-radius: 6px 6px 0 0;
-    padding: 10px 16px;
-    color: #333333 !important;
-    font-weight: 500;
-    border: none;
-}
+COLOR_NARANJA = "#FE8C00"
+COLOR_AMARILLO = "#F5D700"
+COLOR_VERDE = "#64B246"
+COLOR_TURQUESA = "#19EBDC"
 
-.stTabs [aria-selected="true"] {
-    background-color: var(--white) !important;
-    color: #111111 !important;
-    font-weight: 700;
-    border-bottom: 2px solid #D1D5DB !important;
-}
+COLOR_TEXTO = "#252525"
+COLOR_TEXTO_SECUNDARIO = "#666666"
 
-.stTabs [data-baseweb="tab"]:hover {
-    background-color: #F8F9FA !important;
-    color: #111111 !important;
-}
+COLOR_BORDE = "#E3E6EA"
+COLOR_FONDO_SUAVE = "#F8F9FB"
+COLOR_BLANCO = "#FFFFFF"
 
-/* ==========================================================
-   BOTONES PRINCIPALES
-   Calcular / Registrar / Generar reporte = ROJO
-   ========================================================== */
 
-.stButton > button[kind="primary"] {
-    background-color: var(--aa-red) !important;
-    color: var(--white) !important;
-    border: 1px solid var(--aa-red) !important;
-    border-radius: 7px;
-    font-weight: 600;
-}
+# ===============================================================
+# ESTILO GLOBAL DE LA APLICACIÓN
+# ===============================================================
 
-.stButton > button[kind="primary"]:hover {
-    background-color: var(--soft-red) !important;
-    border-color: var(--soft-red) !important;
-    color: var(--white) !important;
-}
+st.markdown(
+    f"""
+    <style>
 
-/* ==========================================================
-   BOTONES SECUNDARIOS
-   SIN COLOR DE MARCA
-   ========================================================== */
+    /* ==========================================================
+       FONDO GENERAL
+       ========================================================== */
 
-.stButton > button[kind="secondary"] {
-    background-color: var(--white) !important;
-    color: #333333 !important;
-    border: 1px solid #D1D5DB !important;
-    border-radius: 7px;
-}
+    .stApp {{
+        background-color: {COLOR_BLANCO};
+    }}
 
-.stButton > button[kind="secondary"]:hover {
-    background-color: #F8F9FA !important;
-    color: #111111 !important;
-    border-color: #BFC3C9 !important;
-}
 
-/* ==========================================================
-   TARJETAS DE MÉTRICAS
-   Neutras para que los semáforos resalten
-   ========================================================== */
+    /* ==========================================================
+       NAVEGACIÓN ENTRE MÓDULOS
 
-div[data-testid="stMetric"] {
-    background-color: var(--surface);
-    border: 1px solid #E6E8EC;
-    border-radius: 9px;
-    padding: 12px 15px;
-}
+       Módulo 1
+       Módulo 2
+       Módulo 3
 
-/* ==========================================================
-   SUBTÍTULOS NORMALES
-   ========================================================== */
+       Se mantienen blancos.
+       ========================================================== */
 
-h3 {
-    color: #252525;
-}
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 6px;
+        background-color: {COLOR_BLANCO};
+        border-bottom: 1px solid {COLOR_BORDE};
+    }}
 
-/* ==========================================================
-   CAMPOS DE ENTRADA
-   ========================================================== */
+    .stTabs [data-baseweb="tab"] {{
+        background-color: {COLOR_BLANCO} !important;
+        color: #444444 !important;
+        border: none !important;
+        border-radius: 6px 6px 0 0;
+        padding: 10px 16px;
+        font-weight: 500;
+    }}
 
-div[data-baseweb="input"] {
-    border-radius: 7px;
-}
+    .stTabs [data-baseweb="tab"]:hover {{
+        background-color: #F7F8FA !important;
+        color: #111111 !important;
+    }}
 
-/* ==========================================================
-   DATAFRAMES / TABLAS
-   ========================================================== */
+    .stTabs [aria-selected="true"] {{
+        background-color: {COLOR_BLANCO} !important;
+        color: #111111 !important;
+        font-weight: 700 !important;
+        border-bottom: 3px solid {COLOR_AZUL} !important;
+    }}
 
-div[data-testid="stDataFrame"] {
-    border-radius: 8px;
-    overflow: hidden;
-}
 
-/* ==========================================================
-   BLOQUE DE ENCABEZADO DE MÓDULO
-   Usar con clase .safco-module-header
-   ========================================================== */
+    /* ==========================================================
+       ELIMINAR FONDOS COLOREADOS EN PESTAÑAS INTERNAS
 
-.safco-module-header {
-    background-color: var(--smart-blue);
-    padding: 14px 20px;
-    border-radius: 9px;
-    margin-top: 4px;
-    margin-bottom: 12px;
-}
+       Ejemplo:
+       Nuevo ingreso a un lote
+       Historial de lotes
+       ========================================================== */
 
-.safco-module-header span {
-    color: var(--white);
-    font-size: 25px;
-    font-weight: 700;
-}
+    button[data-baseweb="tab"] {{
+        background-color: {COLOR_BLANCO} !important;
+    }}
 
-/* ==========================================================
-   ENCABEZADO PRINCIPAL CON LOGO
-   ========================================================== */
 
-.safco-brand-title {
-    font-size: 25px;
-    font-weight: 700;
-    color: var(--aa-blue);
-    margin: 0;
-    line-height: 1.2;
-}
+    /* ==========================================================
+       BOTONES PRINCIPALES
 
-.safco-brand-subtitle {
-    font-size: 14px;
-    color: var(--muted);
-    margin-top: 5px;
-    margin-bottom: 0;
-}
+       Calcular
+       Registrar
+       Generar reporte
+       ========================================================== */
 
-</style>
+    .stButton > button[kind="primary"] {{
+        background-color: {COLOR_ROJO} !important;
+        color: white !important;
+        border: 1px solid {COLOR_ROJO} !important;
 
-<!--
-EJEMPLO DE USO PARA EL ENCABEZADO DE MÓDULO:
+        border-radius: 8px;
 
-<div class="safco-module-header">
-  <span>🌱 Módulo 1 — Formulación de Lotes</span>
-</div>
+        font-weight: 600;
 
-Para el logo, la lógica debe seguir en Python con st.image("logo.png", width=230)
-porque Streamlit maneja mejor las rutas locales desde Python.
--->
+        min-height: 42px;
 
+        transition:
+            background-color 0.15s ease,
+            border-color 0.15s ease,
+            transform 0.05s ease;
+    }}
+
+    .stButton > button[kind="primary"]:hover {{
+        background-color: {COLOR_ROJO_HOVER} !important;
+        border-color: {COLOR_ROJO_HOVER} !important;
+        color: white !important;
+    }}
+
+    .stButton > button[kind="primary"]:active {{
+        transform: translateY(1px);
+    }}
+
+
+    /* ==========================================================
+       BOTONES SECUNDARIOS
+
+       Sin color especial.
+       ========================================================== */
+
+    .stButton > button[kind="secondary"] {{
+        background-color: {COLOR_BLANCO} !important;
+        color: #333333 !important;
+
+        border: 1px solid #CDD1D6 !important;
+
+        border-radius: 8px;
+
+        font-weight: 500;
+    }}
+
+    .stButton > button[kind="secondary"]:hover {{
+        background-color: #F7F8FA !important;
+        color: #111111 !important;
+        border-color: #AEB4BC !important;
+    }}
+
+
+    /* ==========================================================
+       BOTONES DE DESCARGA
+       ========================================================== */
+
+    .stDownloadButton > button {{
+        background-color: {COLOR_BLANCO} !important;
+
+        color: {COLOR_AZUL} !important;
+
+        border: 1px solid {COLOR_AZUL} !important;
+
+        border-radius: 8px;
+
+        font-weight: 600;
+    }}
+
+    .stDownloadButton > button:hover {{
+        background-color: #F3F6FF !important;
+
+        color: {COLOR_AZUL} !important;
+
+        border-color: {COLOR_AZUL} !important;
+    }}
+
+
+    /* ==========================================================
+       TARJETAS DE MÉTRICAS
+       ========================================================== */
+
+    div[data-testid="stMetric"] {{
+        background-color: {COLOR_FONDO_SUAVE};
+
+        border: 1px solid {COLOR_BORDE};
+
+        border-radius: 10px;
+
+        padding: 14px 16px;
+    }}
+
+
+    /* Nombre de la métrica */
+    div[data-testid="stMetricLabel"] {{
+        color: #555555;
+        font-weight: 500;
+    }}
+
+
+    /* Valor principal */
+    div[data-testid="stMetricValue"] {{
+        color: {COLOR_TEXTO};
+        font-weight: 600;
+    }}
+
+
+    /* ==========================================================
+       INPUTS
+       ========================================================== */
+
+    div[data-baseweb="input"] {{
+        border-radius: 8px;
+    }}
+
+    div[data-baseweb="select"] > div {{
+        border-radius: 8px;
+    }}
+
+    textarea {{
+        border-radius: 8px !important;
+    }}
+
+
+    /* ==========================================================
+       DATAFRAMES
+       ========================================================== */
+
+    div[data-testid="stDataFrame"] {{
+        border: 1px solid {COLOR_BORDE};
+        border-radius: 9px;
+        overflow: hidden;
+    }}
+
+
+    /* ==========================================================
+       EXPANDERS
+       ========================================================== */
+
+    div[data-testid="stExpander"] {{
+        border: 1px solid {COLOR_BORDE};
+        border-radius: 9px;
+        background-color: {COLOR_BLANCO};
+    }}
+
+
+    /* ==========================================================
+       SUBHEADERS NORMALES DE STREAMLIT
+       ========================================================== */
+
+    h1 {{
+        color: {COLOR_TEXTO};
+    }}
+
+    h2 {{
+        color: {COLOR_TEXTO};
+    }}
+
+    h3 {{
+        color: {COLOR_TEXTO};
+    }}
+
+
+    /* ==========================================================
+       TEXTOS SECUNDARIOS
+       ========================================================== */
+
+    .stCaption {{
+        color: {COLOR_TEXTO_SECUNDARIO};
+    }}
+
+
+    /* ==========================================================
+       DIVISORES
+       ========================================================== */
+
+    hr {{
+        border-color: #ECEDEF !important;
+    }}
+
+
+    /* ==========================================================
+       ALERTAS
+
+       Streamlit mantiene sus colores semánticos:
+       verde = correcto
+       amarillo = advertencia
+       rojo = error
+       azul = información
+       ========================================================== */
+
+    div[data-testid="stAlert"] {{
+        border-radius: 9px;
+    }}
+
+
+    /* ==========================================================
+       AJUSTE PARA PANTALLAS PEQUEÑAS
+       ========================================================== */
+
+    @media (max-width: 768px) {{
+
+        .stTabs [data-baseweb="tab"] {{
+            padding: 8px 10px;
+            font-size: 13px;
+        }}
+
+        div[data-testid="stMetric"] {{
+            padding: 10px 12px;
+        }}
+
+    }}
+
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ===============================================================
+# ENCABEZADO PRINCIPAL DE SAFCO
+# ===============================================================
+
+def mostrar_encabezado_app():
+
+    # -----------------------------------------------------------
+    # Buscar logo
+    #
+    # Si en GitHub lo guardaste como logo.png, lo encuentra.
+    # También revisa formatos habituales por seguridad.
+    # -----------------------------------------------------------
+
+    candidatos_logo = [
+        "logo.png",
+        "logo.jpg",
+        "logo.jpeg",
+        "logo.webp",
+        "logo"
+    ]
+
+    ruta_logo = None
+
+    for archivo_logo in candidatos_logo:
+
+        if os.path.exists(archivo_logo):
+
+            ruta_logo = archivo_logo
+            break
+
+
+    # -----------------------------------------------------------
+    # Distribución encabezado
+    # -----------------------------------------------------------
+
+    col_logo, col_texto = st.columns(
+        [2.3, 7.7],
+        vertical_alignment="center"
+    )
+
+
+    # -----------------------------------------------------------
+    # LOGO
+    # -----------------------------------------------------------
+
+    with col_logo:
+
+        if ruta_logo:
+
+            st.image(
+                ruta_logo,
+                width=230
+            )
+
+        else:
+
+            # Reserva visual si el archivo no está disponible
+
+            st.markdown(
+                f"""
+                <div style="
+                    width:58px;
+                    height:58px;
+
+                    border-radius:50%;
+
+                    background:{COLOR_AZUL};
+
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+
+                    border:3px solid {COLOR_ROJO};
+                ">
+
+                    <span style="
+                        color:white;
+                        font-size:14px;
+                        font-weight:700;
+                    ">
+                        AA
+                    </span>
+
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+    # -----------------------------------------------------------
+    # TÍTULO
+    # -----------------------------------------------------------
+
+    with col_texto:
+
+        st.markdown(
+            f"""
+            <div style="
+                padding-top:4px;
+                padding-bottom:4px;
+            ">
+
+                <div style="
+                    color:{COLOR_AZUL};
+
+                    font-size:27px;
+                    font-weight:700;
+
+                    line-height:1.15;
+
+                    margin:0;
+                ">
+                    Plataforma de Gestión de Compostaje
+                </div>
+
+
+                <div style="
+                    color:{COLOR_TEXTO_SECUNDARIO};
+
+                    font-size:14px;
+                    font-weight:400;
+
+                    margin-top:6px;
+                ">
+                    SAFCO · Planta de compostaje
+                </div>
+
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+    st.divider()
 
 # ---------------------------------------------------------------
 # 2. DATOS DE REFERENCIA DE INSUMOS
