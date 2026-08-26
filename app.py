@@ -93,7 +93,7 @@ st.markdown(
     }}
 
     [data-testid="stSidebar"] {{
-        background-color: {COLOR_FONDO_SUAVE};
+        background-color: {COLOR_AZUL_CLARO};
         border-right: 1px solid {COLOR_BORDE};
     }}
 
@@ -102,7 +102,7 @@ st.markdown(
     [data-testid="stSidebar"] h3,
     [data-testid="stSidebar"] label,
     [data-testid="stSidebar"] p {{
-        color: {COLOR_AZUL};
+        color: {COLOR_TEXTO};
     }}
 
     /* Jerarquía tipográfica: títulos más grandes, texto de cuerpo más pequeño */
