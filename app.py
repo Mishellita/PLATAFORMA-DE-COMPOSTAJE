@@ -1272,10 +1272,16 @@ with tab_m3:
                 .agg(["min", "max", "count"])
                 .rename(columns={"min": "primer registro", "max": "último registro", "count": "N° mediciones"})
             )
-            resumen_fases["días observados"] = (
+            resumen_fases["días (rango de fechas)"] = (
                 pd.to_datetime(resumen_fases["último registro"]) - pd.to_datetime(resumen_fases["primer registro"])
             ).dt.days + 1
+            resumen_fases["días (según N° de mediciones)"] = resumen_fases["N° mediciones"]
             st.dataframe(resumen_fases, use_container_width=True)
+            st.caption(
+                "\"Días (rango de fechas)\" usa la diferencia entre el primer y el último registro de la fase. "
+                "\"Días (según N° de mediciones)\" asume una medición por día."
+            )
+            st.bar_chart(resumen_fases["días (según N° de mediciones)"])
             dias_totales = (pd.to_datetime(df_seg["fecha"].max()) - pd.to_datetime(df_seg["fecha"].min())).days + 1
             st.caption(f"Días totales de proceso registrados para este lote: **{dias_totales}**")
 
