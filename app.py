@@ -53,16 +53,16 @@ st.markdown(
         background-color: #F4F6FB;
         border-radius: 8px 8px 0 0;
         padding: 10px 16px;
-        color: {COLOR_AZUL};
+        color: {COLOR_SMART_BLUE};
         font-weight: 500;
     }}
     .stTabs [aria-selected="true"] {{
-        background-color: {COLOR_AZUL} !important;
+        background-color: {COLOR_AZUL_CLARO} !important;
         color: white !important;
     }}
     /* Botones primarios */
     .stButton > button[kind="primary"] {{
-        background-color: {COLOR_AZUL_CLARO};
+        background-color: {COLOR_ROJO};
         border: none;
     }}
     .stButton > button[kind="primary"]:hover {{
@@ -71,13 +71,13 @@ st.markdown(
     /* Tarjetas de métricas */
     div[data-testid="stMetric"] {{
         background-color: #F4F6FB;
-        border-left: 3px solid {COLOR_AZUL};
+        border-left: 3px solid {COLOR_TURQUESA};
         border-radius: 8px;
         padding: 10px 14px;
     }}
     /* Encabezados de sección */
     h3 {{
-        color: {COLOR_AZUL};
+        color: {COLOR_SMART_BLUE};
     }}
     </style>
     """,
