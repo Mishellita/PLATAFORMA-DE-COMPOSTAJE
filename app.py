@@ -21,85 +21,192 @@ import pandas as pd
 import os
 from datetime import date
 
-# ---------------------------------------------------------------
-# 1. CONFIGURACIÓN DE LA PÁGINA
-# ---------------------------------------------------------------
-st.set_page_config(
-    page_title="Gestión de Compostaje",
-    layout="wide",
-)
+/* ==========================================================
+   PALETA SAFCO / ANGLO AMERICAN
+   ========================================================== */
 
-# Colores de marca (Anglo American) — paleta primaria y secundaria completa
-COLOR_AZUL = "#031795"          # Azul Angloamericano
-COLOR_SMART_BLUE = "#347FF6"    # Smart Blue
-COLOR_AZUL_CLARO = "#ABCBFA"    # Azul 40%
-COLOR_ROJO = "#FE0000"
-COLOR_NARANJA = "#FE8C00"
-COLOR_AMARILLO = "#F5D700"
-COLOR_VERDE = "#64B246"
-COLOR_TURQUESA = "#19EBDC"
+:root {
+    --aa-blue: #031795;
+    --smart-blue: #347FF6;
+    --light-blue: #ABCBFA;
+    --aa-red: #FE0000;
+    --soft-red: #D90000;
+    --orange: #FE8C00;
+    --yellow: #F5D700;
+    --green: #64B246;
+    --turquoise: #19EBDC;
+    --text: #222222;
+    --muted: #5F5E5A;
+    --border: #E5E7EB;
+    --surface: #F8F9FB;
+    --white: #FFFFFF;
+}
 
-# ---------------------------------------------------------------
-# ESTILO GLOBAL (CSS) — pestañas, botones y tarjetas con la marca
-# ---------------------------------------------------------------
-st.markdown(
-    f"""
-    <style>
-    /* Pestañas principales */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 4px;
-    }}
-    
-    .stTabs [aria-selected="true"] {{
-        background-color: {COLOR_AZUL_CLARO} !important;
-        color: white !important;
-    }}
-    /* Botones primarios */
-    .stButton > button[kind="primary"] {{
-        background-color: {COLOR_ROJO};
-        border: none;
-    }}
-    .stButton > button[kind="primary"]:hover {{
-        background-color: {COLOR_SMART_BLUE};
-    }}
+/* ==========================================================
+   FONDO GENERAL
+   ========================================================== */
 
-def mostrar_encabezado_app():
-    """
-    Encabezado principal de la app, con logo si existe un archivo
-    'logo.png' en el repositorio (súbelo tú desde tu cuenta con acceso
-    al logo oficial de Anglo American; no se incluye aquí por ser una
-    marca registrada). Si no existe, muestra un distintivo de reserva
-    con los colores de marca.
-    """
-    col_logo, col_texto = st.columns([1, 8])
-    with col_logo:
-        if os.path.exists("logo.png"):
-            st.image("logo.png", width=55)
-        else:
-            st.markdown(
-                f"""
-                <div style="width:50px; height:50px; border-radius:50%; background:{COLOR_AZUL};
-                            display:flex; align-items:center; justify-content:center;
-                            border:3px solid {COLOR_ROJO};">
-                    <span style="color:white; font-size:13px; font-weight:700;">AA</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-    with col_texto:
-        st.markdown(
-            f"""
-            <p style="font-size:20px; font-weight:700; color:{COLOR_AZUL}; margin:0;">
-                Plataforma de Gestión de Compostaje
-            </p>
-            <p style="font-size:13px; color:#5F5E5A; margin:0;">
-                Planta de compostaje — Anglo American
-            </p>
-            """,
-            unsafe_allow_html=True,
-        )
+[data-testid="stAppViewContainer"] {
+    background: var(--white);
+}
 
-    st.divider()
+/* ==========================================================
+   PESTAÑAS / SELECTORES DE MÓDULOS
+   SIN COLOR: FONDO BLANCO
+   ========================================================== */
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 6px;
+    background-color: var(--white);
+    border-bottom: 1px solid var(--border);
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: var(--white) !important;
+    border-radius: 6px 6px 0 0;
+    padding: 10px 16px;
+    color: #333333 !important;
+    font-weight: 500;
+    border: none;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: var(--white) !important;
+    color: #111111 !important;
+    font-weight: 700;
+    border-bottom: 2px solid #D1D5DB !important;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background-color: #F8F9FA !important;
+    color: #111111 !important;
+}
+
+/* ==========================================================
+   BOTONES PRINCIPALES
+   Calcular / Registrar / Generar reporte = ROJO
+   ========================================================== */
+
+.stButton > button[kind="primary"] {
+    background-color: var(--aa-red) !important;
+    color: var(--white) !important;
+    border: 1px solid var(--aa-red) !important;
+    border-radius: 7px;
+    font-weight: 600;
+}
+
+.stButton > button[kind="primary"]:hover {
+    background-color: var(--soft-red) !important;
+    border-color: var(--soft-red) !important;
+    color: var(--white) !important;
+}
+
+/* ==========================================================
+   BOTONES SECUNDARIOS
+   SIN COLOR DE MARCA
+   ========================================================== */
+
+.stButton > button[kind="secondary"] {
+    background-color: var(--white) !important;
+    color: #333333 !important;
+    border: 1px solid #D1D5DB !important;
+    border-radius: 7px;
+}
+
+.stButton > button[kind="secondary"]:hover {
+    background-color: #F8F9FA !important;
+    color: #111111 !important;
+    border-color: #BFC3C9 !important;
+}
+
+/* ==========================================================
+   TARJETAS DE MÉTRICAS
+   Neutras para que los semáforos resalten
+   ========================================================== */
+
+div[data-testid="stMetric"] {
+    background-color: var(--surface);
+    border: 1px solid #E6E8EC;
+    border-radius: 9px;
+    padding: 12px 15px;
+}
+
+/* ==========================================================
+   SUBTÍTULOS NORMALES
+   ========================================================== */
+
+h3 {
+    color: #252525;
+}
+
+/* ==========================================================
+   CAMPOS DE ENTRADA
+   ========================================================== */
+
+div[data-baseweb="input"] {
+    border-radius: 7px;
+}
+
+/* ==========================================================
+   DATAFRAMES / TABLAS
+   ========================================================== */
+
+div[data-testid="stDataFrame"] {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* ==========================================================
+   BLOQUE DE ENCABEZADO DE MÓDULO
+   Usar con clase .safco-module-header
+   ========================================================== */
+
+.safco-module-header {
+    background-color: var(--smart-blue);
+    padding: 14px 20px;
+    border-radius: 9px;
+    margin-top: 4px;
+    margin-bottom: 12px;
+}
+
+.safco-module-header span {
+    color: var(--white);
+    font-size: 25px;
+    font-weight: 700;
+}
+
+/* ==========================================================
+   ENCABEZADO PRINCIPAL CON LOGO
+   ========================================================== */
+
+.safco-brand-title {
+    font-size: 25px;
+    font-weight: 700;
+    color: var(--aa-blue);
+    margin: 0;
+    line-height: 1.2;
+}
+
+.safco-brand-subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 5px;
+    margin-bottom: 0;
+}
+
+</style>
+
+<!--
+EJEMPLO DE USO PARA EL ENCABEZADO DE MÓDULO:
+
+<div class="safco-module-header">
+  <span>🌱 Módulo 1 — Formulación de Lotes</span>
+</div>
+
+Para el logo, la lógica debe seguir en Python con st.image("logo.png", width=230)
+porque Streamlit maneja mejor las rutas locales desde Python.
+-->
+
 
 # ---------------------------------------------------------------
 # 2. DATOS DE REFERENCIA DE INSUMOS
