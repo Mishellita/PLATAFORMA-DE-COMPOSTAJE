@@ -1,2 +1,6 @@
-streamlit
-pandas
+[theme]
+primaryColor = "#031795"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F8F9FB"
+textColor = "#252525"
+font = "sans serif"
