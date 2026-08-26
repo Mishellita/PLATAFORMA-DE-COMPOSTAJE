@@ -18,8 +18,7 @@ Cómo funciona este archivo (guía rápida para quien no programa):
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+import os
 from datetime import date
 
 # ---------------------------------------------------------------
@@ -31,10 +30,102 @@ st.set_page_config(
     layout="wide",
 )
 
-# Colores de marca (Anglo American)
-COLOR_AZUL = "#031795"
-COLOR_AZUL_CLARO = "#ABCBFA"
+# Colores de marca (Anglo American) — paleta primaria y secundaria completa
+COLOR_AZUL = "#031795"          # Azul Angloamericano
+COLOR_SMART_BLUE = "#347FF6"    # Smart Blue
+COLOR_AZUL_CLARO = "#ABCBFA"    # Azul 40%
 COLOR_ROJO = "#FE0000"
+COLOR_NARANJA = "#FE8C00"
+COLOR_AMARILLO = "#F5D700"
+COLOR_VERDE = "#64B246"
+COLOR_TURQUESA = "#19EBDC"
+
+# ---------------------------------------------------------------
+# ESTILO GLOBAL (CSS) — pestañas, botones y tarjetas con la marca
+# ---------------------------------------------------------------
+st.markdown(
+    f"""
+    <style>
+    /* Pestañas principales */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 4px;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        background-color: #F4F6FB;
+        border-radius: 8px 8px 0 0;
+        padding: 10px 16px;
+        color: {COLOR_AZUL};
+        font-weight: 500;
+    }}
+    .stTabs [aria-selected="true"] {{
+        background-color: {COLOR_AZUL} !important;
+        color: white !important;
+    }}
+    /* Botones primarios */
+    .stButton > button[kind="primary"] {{
+        background-color: {COLOR_AZUL};
+        border: none;
+    }}
+    .stButton > button[kind="primary"]:hover {{
+        background-color: {COLOR_SMART_BLUE};
+    }}
+    /* Tarjetas de métricas */
+    div[data-testid="stMetric"] {{
+        background-color: #F4F6FB;
+        border-left: 3px solid {COLOR_AZUL};
+        border-radius: 8px;
+        padding: 10px 14px;
+    }}
+    /* Encabezados de sección */
+    h3 {{
+        color: {COLOR_AZUL};
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+def mostrar_encabezado_app():
+    """
+    Encabezado principal de la app, con logo si existe un archivo
+    'logo.png' en el repositorio (súbelo tú desde tu cuenta con acceso
+    al logo oficial de Anglo American; no se incluye aquí por ser una
+    marca registrada). Si no existe, muestra un distintivo de reserva
+    con los colores de marca.
+    """
+    col_logo, col_texto = st.columns([1, 8])
+    with col_logo:
+        if os.path.exists("logo.png"):
+            st.image("logo.png", width=55)
+        else:
+            st.markdown(
+                f"""
+                <div style="width:50px; height:50px; border-radius:50%; background:{COLOR_AZUL};
+                            display:flex; align-items:center; justify-content:center;
+                            border:3px solid {COLOR_ROJO};">
+                    <span style="color:white; font-size:13px; font-weight:700;">AA</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    with col_texto:
+        st.markdown(
+            f"""
+            <p style="font-size:20px; font-weight:700; color:{COLOR_AZUL}; margin:0;">
+                Plataforma de Gestión de Compostaje
+            </p>
+            <p style="font-size:13px; color:#5F5E5A; margin:0;">
+                Planta de compostaje — Anglo American
+            </p>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.caption(
+        "💡 Sube tu archivo del logo oficial como `logo.png` a la raíz del repositorio en GitHub "
+        "para que aparezca aquí automáticamente."
+    )
+    st.divider()
 
 # ---------------------------------------------------------------
 # 2. DATOS DE REFERENCIA DE INSUMOS
@@ -110,60 +201,6 @@ FASES_COMPOSTAJE = {
 # ---------------------------------------------------------------
 if "seguimiento" not in st.session_state:
     st.session_state["seguimiento"] = {}
-
-
-def graficar_curva_fases():
-    """
-    Dibuja la curva típica de temperatura y pH durante el compostaje,
-    con bandas de color para cada fase, marcas de volteo y relación
-    C/N de referencia al inicio y al final. Es una curva esquemática
-    de literatura general, no datos reales de la planta.
-    """
-    dias_ctrl = [0, 2, 4, 10, 20, 23, 30, 45, 60]
-    temp_ctrl = [15, 30, 55, 65, 60, 45, 28, 20, 18]
-    ph_ctrl = [6.5, 6.2, 7.0, 8.3, 8.5, 8.0, 7.5, 7.2, 7.0]
-    dias = np.linspace(0, 60, 300)
-    temp = np.interp(dias, dias_ctrl, temp_ctrl)
-    ph = np.interp(dias, dias_ctrl, ph_ctrl)
-
-    fig, ax = plt.subplots(figsize=(8, 4.2))
-    ax_ph = ax.twinx()
-
-    bandas = [
-        (0, 4, "Mesófila I", "#ABCBFA"),
-        (4, 23, "Termófila", "#031795"),
-        (23, 30, "Mesófila II", "#5B8DEF"),
-        (30, 60, "Maduración", "#D8E4FB"),
-    ]
-    for inicio, fin, nombre, color in bandas:
-        ax.axvspan(inicio, fin, color=color, alpha=0.22)
-        ax.text((inicio + fin) / 2, 72, nombre, ha="center", fontsize=9, color="#031795", fontweight="bold")
-
-    # Marcas de volteo (esquemáticas, en la fase termófila donde son más frecuentes)
-    dias_volteo = [6, 10, 14, 18]
-    for d in dias_volteo:
-        ax.annotate("↓", xy=(d, 78), ha="center", fontsize=13, color="#FE0000")
-    ax.text(np.mean(dias_volteo), 82, "Volteos de la pila", ha="center", fontsize=8.5, color="#FE0000")
-
-    # Relación C/N de referencia al inicio y al final
-    ax.text(2, -8, "C/N inicial ≈ 25–30", ha="center", fontsize=8, color="#444")
-    ax.text(55, -8, "C/N final ≈ 10–20", ha="center", fontsize=8, color="#444")
-
-    l1, = ax.plot(dias, temp, color="#FE0000", linewidth=2.5, label="Temperatura (°C)")
-    l2, = ax_ph.plot(dias, ph, color="#F5A623", linewidth=1.8, linestyle="--", label="pH")
-
-    ax.set_xlabel("Días transcurridos (aproximado)")
-    ax.set_ylabel("Temperatura (°C)", color="#FE0000")
-    ax_ph.set_ylabel("pH", color="#F5A623")
-    ax.set_title("Curva típica de temperatura y pH durante el compostaje (referencial)", fontsize=11)
-    ax.set_ylim(-12, 88)
-    ax_ph.set_ylim(4, 10)
-    ax.set_xlim(0, 60)
-    ax.spines["top"].set_visible(False)
-    ax_ph.spines["top"].set_visible(False)
-    ax.legend(handles=[l1, l2], loc="upper right", fontsize=8, frameon=False)
-    fig.tight_layout()
-    return fig
 
 # Lista de operadores para el selector.
 OPERADORES = ["Adrián Carpio", "Fernando Valdivia", "Michelle Rubiz", "Otro"]
@@ -299,6 +336,8 @@ def encabezado(texto):
 # ---------------------------------------------------------------
 # 6. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
+mostrar_encabezado_app()
+
 tab_m1, tab_m2, tab_m3 = st.tabs([
     "🌾 Módulo 1 — Formulación de Lotes",
     "🪵 Módulo 2 — Capacidad de Estructurante",
@@ -799,10 +838,9 @@ with tab_m3:
 
     with st.expander("📚 Fases del proceso de compostaje (referencia educativa)", expanded=False):
         st.caption(
-            "Curva y rangos de literatura general de compostaje. Son un punto de partida — "
+            "Rangos de literatura general de compostaje. Son un punto de partida — "
             "deben ajustarse con la experiencia real de la planta (altitud 3000 msnm)."
         )
-        st.pyplot(graficar_curva_fases())
 
         tabla_fases = pd.DataFrame([
             {
@@ -864,6 +902,20 @@ with tab_m3:
                 num_volteos_dia = 0
 
         if st.button("✅ Registrar seguimiento", type="primary"):
+            campos_faltantes = []
+            if not operadores_seg:
+                campos_faltantes.append("operador(es)")
+            if temp1 == 0 or temp2 == 0 or temp3 == 0:
+                campos_faltantes.append("los 3 puntos de temperatura")
+            if ph1 == 0 or ph2 == 0 or ph3 == 0:
+                campos_faltantes.append("los 3 puntos de pH")
+            if humedad_seg == 0:
+                campos_faltantes.append("humedad")
+
+            if campos_faltantes:
+                st.error(f"Faltan datos por completar: {', '.join(campos_faltantes)}. No se puede registrar con celdas en 0 o vacías.")
+                st.stop()
+
             ref_fase = FASES_COMPOSTAJE[fase_seg]
             lista_operadores = [op for op in operadores_seg if op != "Otro"]
             if "Otro" in operadores_seg and operador_otro_seg:
@@ -968,7 +1020,9 @@ with tab_m3:
 
             st.subheader("5. Registro completo del lote")
             st.dataframe(df_seg, use_container_width=True)
-            total_volteos = int(df_seg["n_volteos"].sum())
+            total_volteos = int(df_seg["n_volteos"].sum()) if "n_volteos" in df_seg.columns else (
+                int(df_seg["volteo"].sum()) if "volteo" in df_seg.columns else 0
+            )
             st.caption(f"Volteos registrados en total para este lote: **{total_volteos}**")
 
             csv_seg = df_seg.to_csv(index=False).encode("utf-8")
