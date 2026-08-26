@@ -93,7 +93,7 @@ st.markdown(
     }}
 
     [data-testid="stSidebar"] {{
-        background-color: {COLOR_AZUL_CLARO};
+        background-color: {COLOR_SMART_BLUE};
         border-right: 1px solid {COLOR_BORDE};
     }}
 
