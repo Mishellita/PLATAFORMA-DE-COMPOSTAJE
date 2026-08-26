@@ -288,7 +288,7 @@ def mostrar_encabezado_app():
             f"""
             <div style="padding-top:4px; padding-bottom:4px;">
                 <div style="color:{COLOR_AZUL}; font-size:26px; font-weight:700; line-height:1.15; margin:0;">
-                    Plataforma para la gestión del compostaje — Primera edición
+                    PLATAFORMA PARA LA GESTIÓN DE OMPOSTAJE (Primera edición)
                 </div>
                 <div style="color:{COLOR_TEXTO_SECUNDARIO}; font-size:14px; font-weight:400; margin-top:6px;">
                     Sistema de apoyo para formulaciones y gestión de compostaje
