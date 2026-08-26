@@ -24,465 +24,114 @@ from datetime import date
 # ---------------------------------------------------------------
 # 1. CONFIGURACIÓN DE LA PÁGINA
 # ---------------------------------------------------------------
-
 st.set_page_config(
     page_title="Gestión de Compostaje",
     page_icon="🌱",
-    layout="wide"
+    layout="wide",
 )
 
-
-# ===============================================================
-# PALETA DE COLORES
-# ===============================================================
-
-COLOR_AZUL = "#031795"          # Azul corporativo
-COLOR_SMART_BLUE = "#347FF6"    # Smart Blue para encabezados de módulos
-COLOR_AZUL_CLARO = "#ABCBFA"
-
-COLOR_ROJO = "#FE0000"          # Botones principales
-COLOR_ROJO_HOVER = "#D90000"
-
+# Colores de marca (Anglo American) — paleta primaria y secundaria completa
+COLOR_AZUL = "#031795"          # Azul Angloamericano
+COLOR_SMART_BLUE = "#347FF6"    # Smart Blue
+COLOR_AZUL_CLARO = "#ABCBFA"    # Azul 40%
+COLOR_ROJO = "#FE0000"
 COLOR_NARANJA = "#FE8C00"
 COLOR_AMARILLO = "#F5D700"
 COLOR_VERDE = "#64B246"
 COLOR_TURQUESA = "#19EBDC"
 
-COLOR_TEXTO = "#252525"
-COLOR_TEXTO_SECUNDARIO = "#666666"
-
-COLOR_BORDE = "#E3E6EA"
-COLOR_FONDO_SUAVE = "#F8F9FB"
-COLOR_BLANCO = "#FFFFFF"
-
-
-# ===============================================================
-# ESTILO GLOBAL DE LA APLICACIÓN
-# ===============================================================
-
+# ---------------------------------------------------------------
+# ESTILO GLOBAL (CSS) — pestañas, botones y tarjetas con la marca
+# ---------------------------------------------------------------
 st.markdown(
     f"""
     <style>
-
-    /* ==========================================================
-       FONDO GENERAL
-       ========================================================== */
-
-    .stApp {{
-        background-color: {COLOR_BLANCO};
-    }}
-
-
-    /* ==========================================================
-       NAVEGACIÓN ENTRE MÓDULOS
-
-       Módulo 1
-       Módulo 2
-       Módulo 3
-
-       Se mantienen blancos.
-       ========================================================== */
-
+    /* Pestañas principales */
     .stTabs [data-baseweb="tab-list"] {{
-        gap: 6px;
-        background-color: {COLOR_BLANCO};
-        border-bottom: 1px solid {COLOR_BORDE};
+        gap: 4px;
     }}
-
     .stTabs [data-baseweb="tab"] {{
-        background-color: {COLOR_BLANCO} !important;
-        color: #444444 !important;
-        border: none !important;
-        border-radius: 6px 6px 0 0;
+        background-color: #F4F6FB;
+        border-radius: 8px 8px 0 0;
         padding: 10px 16px;
+        color: {COLOR_AZUL};
         font-weight: 500;
     }}
-
-    .stTabs [data-baseweb="tab"]:hover {{
-        background-color: #F7F8FA !important;
-        color: #111111 !important;
-    }}
-
     .stTabs [aria-selected="true"] {{
-        background-color: {COLOR_BLANCO} !important;
-        color: #111111 !important;
-        font-weight: 700 !important;
-        border-bottom: 3px solid {COLOR_AZUL} !important;
+        background-color: {COLOR_AZUL} !important;
+        color: white !important;
     }}
-
-
-    /* ==========================================================
-       ELIMINAR FONDOS COLOREADOS EN PESTAÑAS INTERNAS
-
-       Ejemplo:
-       Nuevo ingreso a un lote
-       Historial de lotes
-       ========================================================== */
-
-    button[data-baseweb="tab"] {{
-        background-color: {COLOR_BLANCO} !important;
+    /* Barra indicadora bajo la pestaña seleccionada (por defecto sale roja) */
+    .stTabs [data-baseweb="tab-highlight"] {{
+        background-color: {COLOR_AZUL} !important;
     }}
-
-
-    /* ==========================================================
-       BOTONES PRINCIPALES
-
-       Calcular
-       Registrar
-       Generar reporte
-       ========================================================== */
-
+    .stTabs [data-baseweb="tab-border"] {{
+        background-color: transparent !important;
+    }}
+    /* Botones primarios */
     .stButton > button[kind="primary"] {{
-        background-color: {COLOR_ROJO} !important;
-        color: white !important;
-        border: 1px solid {COLOR_ROJO} !important;
-
-        border-radius: 8px;
-
-        font-weight: 600;
-
-        min-height: 42px;
-
-        transition:
-            background-color 0.15s ease,
-            border-color 0.15s ease,
-            transform 0.05s ease;
+        background-color: {COLOR_AZUL};
+        border: none;
     }}
-
     .stButton > button[kind="primary"]:hover {{
-        background-color: {COLOR_ROJO_HOVER} !important;
-        border-color: {COLOR_ROJO_HOVER} !important;
-        color: white !important;
+        background-color: {COLOR_SMART_BLUE};
     }}
-
-    .stButton > button[kind="primary"]:active {{
-        transform: translateY(1px);
-    }}
-
-
-    /* ==========================================================
-       BOTONES SECUNDARIOS
-
-       Sin color especial.
-       ========================================================== */
-
-    .stButton > button[kind="secondary"] {{
-        background-color: {COLOR_BLANCO} !important;
-        color: #333333 !important;
-
-        border: 1px solid #CDD1D6 !important;
-
-        border-radius: 8px;
-
-        font-weight: 500;
-    }}
-
-    .stButton > button[kind="secondary"]:hover {{
-        background-color: #F7F8FA !important;
-        color: #111111 !important;
-        border-color: #AEB4BC !important;
-    }}
-
-
-    /* ==========================================================
-       BOTONES DE DESCARGA
-       ========================================================== */
-
-    .stDownloadButton > button {{
-        background-color: {COLOR_BLANCO} !important;
-
-        color: {COLOR_AZUL} !important;
-
-        border: 1px solid {COLOR_AZUL} !important;
-
-        border-radius: 8px;
-
-        font-weight: 600;
-    }}
-
-    .stDownloadButton > button:hover {{
-        background-color: #F3F6FF !important;
-
-        color: {COLOR_AZUL} !important;
-
-        border-color: {COLOR_AZUL} !important;
-    }}
-
-
-    /* ==========================================================
-       TARJETAS DE MÉTRICAS
-       ========================================================== */
-
+    /* Tarjetas de métricas */
     div[data-testid="stMetric"] {{
-        background-color: {COLOR_FONDO_SUAVE};
-
-        border: 1px solid {COLOR_BORDE};
-
-        border-radius: 10px;
-
-        padding: 14px 16px;
-    }}
-
-
-    /* Nombre de la métrica */
-    div[data-testid="stMetricLabel"] {{
-        color: #555555;
-        font-weight: 500;
-    }}
-
-
-    /* Valor principal */
-    div[data-testid="stMetricValue"] {{
-        color: {COLOR_TEXTO};
-        font-weight: 600;
-    }}
-
-
-    /* ==========================================================
-       INPUTS
-       ========================================================== */
-
-    div[data-baseweb="input"] {{
+        background-color: #F4F6FB;
+        border-left: 3px solid {COLOR_AZUL};
         border-radius: 8px;
+        padding: 10px 14px;
     }}
-
-    div[data-baseweb="select"] > div {{
-        border-radius: 8px;
-    }}
-
-    textarea {{
-        border-radius: 8px !important;
-    }}
-
-
-    /* ==========================================================
-       DATAFRAMES
-       ========================================================== */
-
-    div[data-testid="stDataFrame"] {{
-        border: 1px solid {COLOR_BORDE};
-        border-radius: 9px;
-        overflow: hidden;
-    }}
-
-
-    /* ==========================================================
-       EXPANDERS
-       ========================================================== */
-
-    div[data-testid="stExpander"] {{
-        border: 1px solid {COLOR_BORDE};
-        border-radius: 9px;
-        background-color: {COLOR_BLANCO};
-    }}
-
-
-    /* ==========================================================
-       SUBHEADERS NORMALES DE STREAMLIT
-       ========================================================== */
-
-    h1 {{
-        color: {COLOR_TEXTO};
-    }}
-
-    h2 {{
-        color: {COLOR_TEXTO};
-    }}
-
+    /* Encabezados de sección */
     h3 {{
-        color: {COLOR_TEXTO};
+        color: {COLOR_AZUL};
     }}
-
-
-    /* ==========================================================
-       TEXTOS SECUNDARIOS
-       ========================================================== */
-
-    .stCaption {{
-        color: {COLOR_TEXTO_SECUNDARIO};
-    }}
-
-
-    /* ==========================================================
-       DIVISORES
-       ========================================================== */
-
-    hr {{
-        border-color: #ECEDEF !important;
-    }}
-
-
-    /* ==========================================================
-       ALERTAS
-
-       Streamlit mantiene sus colores semánticos:
-       verde = correcto
-       amarillo = advertencia
-       rojo = error
-       azul = información
-       ========================================================== */
-
-    div[data-testid="stAlert"] {{
-        border-radius: 9px;
-    }}
-
-
-    /* ==========================================================
-       AJUSTE PARA PANTALLAS PEQUEÑAS
-       ========================================================== */
-
-    @media (max-width: 768px) {{
-
-        .stTabs [data-baseweb="tab"] {{
-            padding: 8px 10px;
-            font-size: 13px;
-        }}
-
-        div[data-testid="stMetric"] {{
-            padding: 10px 12px;
-        }}
-
-    }}
-
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-# ===============================================================
-# ENCABEZADO PRINCIPAL DE SAFCO
-# ===============================================================
-
 def mostrar_encabezado_app():
-
-    # -----------------------------------------------------------
-    # Buscar logo
-    #
-    # Si en GitHub lo guardaste como logo.png, lo encuentra.
-    # También revisa formatos habituales por seguridad.
-    # -----------------------------------------------------------
-
-    candidatos_logo = [
-        "logo.png",
-        "logo.jpg",
-        "logo.jpeg",
-        "logo.webp",
-        "logo"
-    ]
-
-    ruta_logo = None
-
-    for archivo_logo in candidatos_logo:
-
-        if os.path.exists(archivo_logo):
-
-            ruta_logo = archivo_logo
-            break
-
-
-    # -----------------------------------------------------------
-    # Distribución encabezado
-    # -----------------------------------------------------------
-
-    col_logo, col_texto = st.columns(
-        [2.3, 7.7],
-        vertical_alignment="center"
-    )
-
-
-    # -----------------------------------------------------------
-    # LOGO
-    # -----------------------------------------------------------
-
+    """
+    Encabezado principal de la app, con logo si existe un archivo
+    'logo.png' en el repositorio (súbelo tú desde tu cuenta con acceso
+    al logo oficial de Anglo American; no se incluye aquí por ser una
+    marca registrada). Si no existe, muestra un distintivo de reserva
+    con los colores de marca.
+    """
+    col_logo, col_texto = st.columns([1, 8])
     with col_logo:
-
-        if ruta_logo:
-
-            st.image(
-                ruta_logo,
-                width=230
-            )
-
+        if os.path.exists("logo.png"):
+            st.image("logo.png", width=55)
         else:
-
-            # Reserva visual si el archivo no está disponible
-
             st.markdown(
                 f"""
-                <div style="
-                    width:58px;
-                    height:58px;
-
-                    border-radius:50%;
-
-                    background:{COLOR_AZUL};
-
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-
-                    border:3px solid {COLOR_ROJO};
-                ">
-
-                    <span style="
-                        color:white;
-                        font-size:14px;
-                        font-weight:700;
-                    ">
-                        AA
-                    </span>
-
+                <div style="width:50px; height:50px; border-radius:50%; background:{COLOR_AZUL};
+                            display:flex; align-items:center; justify-content:center;
+                            border:3px solid {COLOR_ROJO};">
+                    <span style="color:white; font-size:13px; font-weight:700;">AA</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-
-
-    # -----------------------------------------------------------
-    # TÍTULO
-    # -----------------------------------------------------------
-
     with col_texto:
-
         st.markdown(
             f"""
-            <div style="
-                padding-top:4px;
-                padding-bottom:4px;
-            ">
-
-                <div style="
-                    color:{COLOR_AZUL};
-
-                    font-size:27px;
-                    font-weight:700;
-
-                    line-height:1.15;
-
-                    margin:0;
-                ">
-                    Plataforma de Gestión de Compostaje
-                </div>
-
-
-                <div style="
-                    color:{COLOR_TEXTO_SECUNDARIO};
-
-                    font-size:14px;
-                    font-weight:400;
-
-                    margin-top:6px;
-                ">
-                    SAFCO · Planta de compostaje
-                </div>
-
-            </div>
+            <p style="font-size:20px; font-weight:700; color:{COLOR_AZUL}; margin:0;">
+                Plataforma para la gestión del compostaje — Primera edición
+            </p>
+            <p style="font-size:13px; color:#5F5E5A; margin:0;">
+                Sistema de apoyo para formulaciones y gestión de compostaje
+            </p>
             """,
             unsafe_allow_html=True,
         )
-
-
+    st.caption(
+        "💡 Sube tu archivo del logo oficial como `logo.png` a la raíz del repositorio en GitHub "
+        "para que aparezca aquí automáticamente."
+    )
     st.divider()
 
 # ---------------------------------------------------------------
@@ -696,17 +345,18 @@ def encabezado(texto):
 # ---------------------------------------------------------------
 mostrar_encabezado_app()
 
-tab_m1, tab_m2, tab_m3 = st.tabs([
-    "Módulo 1 — Formulación de Lotes",
-    "Módulo 2 — Capacidad de Estructurante",
-    "Módulo 3 — Seguimiento de Pilas",
+tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
+    "🌾 Módulo 1 — Formulación de Lotes",
+    "🪵 Módulo 2 — Capacidad de Estructurante",
+    "🌡️ Módulo 3 — Seguimiento de Pilas",
+    "📊 Módulo 4 — Indicadores",
 ])
 
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
 with tab_m1:
-    encabezado("Módulo 1 — Formulación de Lotes")
+    encabezado("🌱 Módulo 1 — Formulación de Lotes")
     st.caption("Registro de ingresos de residuos por lote, con cálculo automático de humedad y relación C/N")
 
     tab_nuevo, tab_historial = st.tabs(["➕ Nuevo ingreso a un lote", "📋 Historial de lotes"])
@@ -870,7 +520,7 @@ with tab_m1:
 # MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
 # =================================================================
 with tab_m2:
-    encabezado("Módulo 2 — Capacidad de Material Estructurante")
+    encabezado("🪵 Módulo 2 — Capacidad de Material Estructurante")
     st.caption("Planifica cuánto aserrín o cartón adicional necesitas para una cantidad de lodo a procesar")
 
     with st.expander("ℹ️ ¿Qué hace este módulo? (léelo antes de calcular)"):
@@ -1134,6 +784,9 @@ with tab_m2:
         alternativa_elegida = st.radio("¿Qué alternativa vas a solicitar?", list(alternativa_map.keys()), key="m2_alt_radio")
 
         if st.button("📄 Generar reporte de solicitud", type="primary"):
+            if not operador2:
+                st.error("Ingresa el nombre del operador antes de generar el reporte.")
+                st.stop()
             as_sol, ca_sol, mezcla_sel = alternativa_map[alternativa_elegida]
             reporte = f"""SOLICITUD DE MATERIAL ESTRUCTURANTE - PLANTA DE COMPOSTAJE
 Fecha de planificación: {fecha2}
@@ -1191,7 +844,7 @@ referenciales de literatura y debe recalibrarse cuando exista caracterización r
 # MÓDULO 3 — SEGUIMIENTO DE PILAS
 # =================================================================
 with tab_m3:
-    encabezado("Módulo 3 — Seguimiento de Pilas")
+    encabezado("🌡️ Módulo 3 — Seguimiento de Pilas")
     st.caption("Registro diario de temperatura, pH y humedad por lote, con recomendaciones según la fase del proceso")
 
     with st.expander("📚 Fases del proceso de compostaje (referencia educativa)", expanded=False):
@@ -1390,3 +1043,83 @@ with tab_m3:
             )
         else:
             st.info("Aún no hay registros de seguimiento para este lote.")
+
+# =================================================================
+# MÓDULO 4 — INDICADORES
+# =================================================================
+with tab_m4:
+    encabezado("📊 Módulo 4 — Indicadores")
+    st.caption("Vista resumen: lotes activos, valorización de residuos, alertas acumuladas y huella de carbono evitada")
+
+    if not st.session_state.lotes:
+        st.info("Aún no hay lotes registrados. Los indicadores se irán llenando a medida que uses los Módulos 1 y 3.")
+    else:
+        # ---- Bloque operativo: lotes y su fase actual --------------
+        st.subheader("1. Estado operativo de lotes")
+        filas_operativo = []
+        for codigo_lote_ind, df_lote_ind in st.session_state.lotes.items():
+            masa_lote = df_lote_ind["masa_acumulada_ton"].iloc[-1] if "masa_acumulada_ton" in df_lote_ind.columns else 0
+            if codigo_lote_ind in st.session_state["seguimiento"]:
+                df_seg_ind = st.session_state["seguimiento"][codigo_lote_ind]
+                fase_actual = df_seg_ind["fase"].iloc[-1]
+                ultima_fecha = df_seg_ind["fecha"].iloc[-1]
+            else:
+                fase_actual = "Sin seguimiento registrado"
+                ultima_fecha = "—"
+            filas_operativo.append({
+                "Lote": codigo_lote_ind, "Masa acumulada (t)": round(masa_lote, 2),
+                "Fase actual": fase_actual, "Última medición": ultima_fecha,
+            })
+        df_operativo = pd.DataFrame(filas_operativo)
+        st.dataframe(df_operativo, use_container_width=True, hide_index=True)
+
+        oc1, oc2 = st.columns(2)
+        oc1.metric("Lotes activos", len(st.session_state.lotes))
+        oc2.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
+
+        # ---- Bloque de valorización ---------------------------------
+        st.subheader("2. Valorización de residuos")
+        masa_total_valorizada = df_operativo["Masa acumulada (t)"].sum()
+        vc1, vc2 = st.columns(2)
+        vc1.metric("Total de residuos ingresados a compostaje", f"{masa_total_valorizada:.2f} t")
+        vc2.metric("N° de lotes formulados", len(st.session_state.lotes))
+        st.caption(
+            "Esta cifra representa los residuos que entraron al proceso (Módulo 1), como referencia de "
+            "cuánto se está desviando de disposición final. No mide el compost terminado, ya que su peso "
+            "final depende de las pérdidas de humedad durante el proceso."
+        )
+
+        # ---- Bloque de alertas acumuladas ----------------------------
+        st.subheader("3. Alertas acumuladas de seguimiento")
+        total_altas = total_bajas = total_normales = 0
+        for df_seg_ind in st.session_state["seguimiento"].values():
+            for col_eval in ["eval_temp", "eval_ph", "eval_humedad"]:
+                if col_eval in df_seg_ind.columns:
+                    total_altas += (df_seg_ind[col_eval] == "alto").sum()
+                    total_bajas += (df_seg_ind[col_eval] == "bajo").sum()
+                    total_normales += (df_seg_ind[col_eval] == "normal").sum()
+
+        ac1, ac2, ac3 = st.columns(3)
+        ac1.metric("Mediciones normales", int(total_normales))
+        ac2.metric("Mediciones bajas", int(total_bajas))
+        ac3.metric("Mediciones altas", int(total_altas))
+        total_mediciones = total_altas + total_bajas + total_normales
+        if total_mediciones > 0:
+            pct_fuera_rango = ((total_altas + total_bajas) / total_mediciones) * 100
+            st.caption(f"{pct_fuera_rango:.0f}% de las mediciones registradas (temperatura, pH y humedad) salieron fuera del rango esperado de su fase.")
+        else:
+            st.caption("Aún no hay mediciones de seguimiento registradas en el Módulo 3.")
+
+        # ---- Huella de carbono evitada (referencial) ------------------
+        st.subheader("4. Huella de carbono evitada (estimación referencial)")
+        st.caption(
+            "Cada tonelada de residuo orgánico compostada, en vez de dispuesta, evita emisiones de metano. "
+            "El factor de emisión es un valor de literatura y debe ajustarse a la realidad de la mina — "
+            "trátalo como una estimación, no como una cifra exacta para reporte oficial sin validar."
+        )
+        factor_emision = st.number_input(
+            "Factor de emisión (t CO₂e evitadas por tonelada de residuo compostado)",
+            min_value=0.0, value=0.5, step=0.05, format="%.2f",
+        )
+        co2_evitado = masa_total_valorizada * factor_emision
+        st.metric("CO₂e evitado estimado", f"{co2_evitado:.2f} t CO₂e")
