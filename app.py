@@ -26,7 +26,6 @@ from datetime import date
 # ---------------------------------------------------------------
 st.set_page_config(
     page_title="Gestión de Compostaje",
-    page_icon="🌱",
     layout="wide",
 )
 
@@ -63,7 +62,7 @@ st.markdown(
     }}
     /* Botones primarios */
     .stButton > button[kind="primary"] {{
-        background-color: {COLOR_AZUL};
+        background-color: {COLOR_AZUL_CLARO};
         border: none;
     }}
     .stButton > button[kind="primary"]:hover {{
@@ -121,10 +120,7 @@ def mostrar_encabezado_app():
             """,
             unsafe_allow_html=True,
         )
-    st.caption(
-        "💡 Sube tu archivo del logo oficial como `logo.png` a la raíz del repositorio en GitHub "
-        "para que aparezca aquí automáticamente."
-    )
+
     st.divider()
 
 # ---------------------------------------------------------------
@@ -339,16 +335,16 @@ def encabezado(texto):
 mostrar_encabezado_app()
 
 tab_m1, tab_m2, tab_m3 = st.tabs([
-    "🌾 Módulo 1 — Formulación de Lotes",
-    "🪵 Módulo 2 — Capacidad de Estructurante",
-    "🌡️ Módulo 3 — Seguimiento de Pilas",
+    "Módulo 1 — Formulación de Lotes",
+    "Módulo 2 — Capacidad de Estructurante",
+    "Módulo 3 — Seguimiento de Pilas",
 ])
 
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
 with tab_m1:
-    encabezado("🌱 Módulo 1 — Formulación de Lotes")
+    encabezado("Módulo 1 — Formulación de Lotes")
     st.caption("Registro de ingresos de residuos por lote, con cálculo automático de humedad y relación C/N")
 
     tab_nuevo, tab_historial = st.tabs(["➕ Nuevo ingreso a un lote", "📋 Historial de lotes"])
@@ -512,7 +508,7 @@ with tab_m1:
 # MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
 # =================================================================
 with tab_m2:
-    encabezado("🪵 Módulo 2 — Capacidad de Material Estructurante")
+    encabezado("Módulo 2 — Capacidad de Material Estructurante")
     st.caption("Planifica cuánto aserrín o cartón adicional necesitas para una cantidad de lodo a procesar")
 
     with st.expander("ℹ️ ¿Qué hace este módulo? (léelo antes de calcular)"):
@@ -833,7 +829,7 @@ referenciales de literatura y debe recalibrarse cuando exista caracterización r
 # MÓDULO 3 — SEGUIMIENTO DE PILAS
 # =================================================================
 with tab_m3:
-    encabezado("🌡️ Módulo 3 — Seguimiento de Pilas")
+    encabezado("Módulo 3 — Seguimiento de Pilas")
     st.caption("Registro diario de temperatura, pH y humedad por lote, con recomendaciones según la fase del proceso")
 
     with st.expander("📚 Fases del proceso de compostaje (referencia educativa)", expanded=False):
