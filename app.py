@@ -56,6 +56,23 @@ COLOR_FONDO_SUAVE = "#F8F9FB"
 COLOR_BLANCO = "#FFFFFF"
 
 
+def buscar_archivo_logo():
+    """
+    Busca cualquier archivo que empiece con 'logo' en la raíz del
+    repositorio, sin importar mayúsculas/minúsculas ni la extensión
+    exacta (png, jpg, jpeg, webp). Así funciona aunque el archivo se
+    haya subido como 'Logo.PNG', 'LOGO.jpg', etc.
+    """
+    extensiones_validas = (".png", ".jpg", ".jpeg", ".webp")
+    try:
+        for nombre_archivo in os.listdir("."):
+            if nombre_archivo.lower().startswith("logo") and nombre_archivo.lower().endswith(extensiones_validas):
+                return nombre_archivo
+    except Exception:
+        pass
+    return None
+
+
 # ===============================================================
 # ESTILO GLOBAL DE LA APLICACIÓN — estilo dashboard ejecutivo
 # (bordes redondeados, sombras suaves, minimalista)
@@ -65,9 +82,22 @@ st.markdown(
     f"""
     <style>
 
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {{
+        font-family: 'Inter', 'Source Sans Pro', sans-serif !important;
+    }}
+
     .stApp {{
         background-color: {COLOR_FONDO_SUAVE};
     }}
+
+    /* Jerarquía tipográfica: títulos más grandes, texto de cuerpo más pequeño */
+    h1 {{ font-size: 26px !important; font-weight: 700 !important; }}
+    h2 {{ font-size: 20px !important; font-weight: 600 !important; }}
+    h3 {{ font-size: 16px !important; font-weight: 600 !important; }}
+    p, span, label, div {{ font-size: 14px; }}
+    .stCaption, small {{ font-size: 12px !important; }}
 
     /* ---------------- NAVEGACIÓN ENTRE MÓDULOS ---------------- */
 
@@ -84,6 +114,7 @@ st.markdown(
         border-radius: 8px 8px 0 0;
         padding: 10px 18px;
         font-weight: 500;
+        font-size: 14px;
     }}
 
     .stTabs [data-baseweb="tab"]:hover {{
@@ -97,6 +128,20 @@ st.markdown(
         font-weight: 700 !important;
         border-bottom: 3px solid {COLOR_AZUL} !important;
         box-shadow: 0 -2px 8px rgba(3, 23, 149, 0.06);
+    }}
+
+    /* Streamlit dibuja una barra indicadora aparte (por defecto roja);
+       la forzamos a azul y anulamos cualquier borde rojo residual. */
+    .stTabs [data-baseweb="tab-highlight"],
+    .stTabs [data-baseweb="tab-border"] {{
+        background-color: {COLOR_AZUL} !important;
+        border-color: {COLOR_AZUL} !important;
+    }}
+    .stTabs [data-baseweb="tab"]:focus,
+    .stTabs [data-baseweb="tab"]:focus-visible {{
+        color: {COLOR_AZUL} !important;
+        outline-color: {COLOR_AZUL} !important;
+        box-shadow: none !important;
     }}
 
     /* Todo lo relacionado a la barra indicadora queda azul, nunca roja */
@@ -219,8 +264,7 @@ st.markdown(
 # ===============================================================
 
 def mostrar_encabezado_app():
-    candidatos_logo = ["logo.png", "logo.jpg", "logo.jpeg", "logo.webp"]
-    ruta_logo = next((f for f in candidatos_logo if os.path.exists(f)), None)
+    ruta_logo = buscar_archivo_logo()
 
     col_logo, col_texto = st.columns([1.4, 8.6], vertical_alignment="center")
 
@@ -277,8 +321,7 @@ if "ingreso_plataforma" not in st.session_state:
     st.session_state["ingreso_plataforma"] = False
 
 if not st.session_state["ingreso_plataforma"]:
-    candidatos_logo = ["logo.png", "logo.jpg", "logo.jpeg", "logo.webp"]
-    ruta_logo = next((f for f in candidatos_logo if os.path.exists(f)), None)
+    ruta_logo = buscar_archivo_logo()
 
     st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)
     col_izq, col_centro, col_der = st.columns([1, 2, 1])
@@ -510,6 +553,49 @@ st.sidebar.warning(
 )
 
 # ---------------------------------------------------------------
+# INDICADORES GENERALES (visibles en todo momento, en cualquier módulo)
+# ---------------------------------------------------------------
+st.sidebar.divider()
+st.sidebar.header("Indicadores generales")
+
+if not st.session_state.lotes:
+    st.sidebar.caption("Aún no hay lotes registrados.")
+else:
+    st.sidebar.metric("Lotes activos", len(st.session_state.lotes))
+    st.sidebar.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
+
+    _totales_insumo_sb = {codigo: 0.0 for codigo in INSUMOS_REF}
+    for _df_lote_sb in st.session_state.lotes.values():
+        for _codigo_sb in INSUMOS_REF:
+            _col_ton_sb = f"{_codigo_sb}_ton"
+            if _col_ton_sb in _df_lote_sb.columns:
+                _totales_insumo_sb[_codigo_sb] += _df_lote_sb[_col_ton_sb].sum()
+    _masa_total_valorizada_sb = sum(_totales_insumo_sb.values())
+
+    st.sidebar.metric("Total ingresado a compostaje", f"{_masa_total_valorizada_sb:.2f} t")
+    with st.sidebar.expander("Ver valorización por insumo"):
+        for _codigo_sb, _total_sb in _totales_insumo_sb.items():
+            st.caption(f"{INSUMOS_REF[_codigo_sb]['nombre']}: {_total_sb:.2f} t")
+
+    _total_altas_sb = _total_bajas_sb = _total_normales_sb = 0
+    for _df_seg_sb in st.session_state["seguimiento"].values():
+        for _col_eval_sb in ["eval_temp", "eval_ph", "eval_humedad"]:
+            if _col_eval_sb in _df_seg_sb.columns:
+                _total_altas_sb += (_df_seg_sb[_col_eval_sb] == "alto").sum()
+                _total_bajas_sb += (_df_seg_sb[_col_eval_sb] == "bajo").sum()
+                _total_normales_sb += (_df_seg_sb[_col_eval_sb] == "normal").sum()
+    _total_mediciones_sb = _total_altas_sb + _total_bajas_sb + _total_normales_sb
+    st.sidebar.metric("Alertas acumuladas (temp/pH/humedad)", int(_total_altas_sb + _total_bajas_sb))
+    if _total_mediciones_sb > 0:
+        st.sidebar.caption(f"{((_total_altas_sb + _total_bajas_sb) / _total_mediciones_sb) * 100:.0f}% de las mediciones salieron fuera de rango.")
+
+    st.sidebar.caption("Huella de carbono evitada (estimación referencial):")
+    _factor_emision_sb = st.sidebar.number_input(
+        "Factor de emisión (t CO2e / t compostada)", min_value=0.0, value=0.5, step=0.05, format="%.2f", key="factor_emision_sidebar"
+    )
+    st.sidebar.metric("CO2e evitado estimado", f"{_masa_total_valorizada_sb * _factor_emision_sb:.2f} t CO2e")
+
+# ---------------------------------------------------------------
 # 5. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
 mostrar_encabezado_app()
@@ -526,6 +612,10 @@ tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
 # =================================================================
 with tab_m1:
     encabezado("Módulo 1 — Formulación de Lotes")
+    st.caption(
+        "Registra los residuos que ingresan a cada lote y calcula automáticamente su humedad y relación "
+        "carbono/nitrógeno, con historial acumulado día a día."
+    )
 
     tab_nuevo, tab_historial = st.tabs(["Nuevo ingreso a un lote", "Historial de lotes"])
 
@@ -813,6 +903,9 @@ with tab_m2:
 
         st.subheader("4. Comparación técnica de escenarios")
 
+        # Mezcla resultante si se siguiera exactamente la referencia histórica 60/20/20
+        mezcla_hist = mezcla_ton({"RO": ro_hist, "CA": ca_hist, "LD": ld_hist})
+
         tabla_comparativa = pd.DataFrame([
             {
                 "Escenario": "Mezcla sin ajuste",
@@ -855,8 +948,9 @@ with tab_m2:
                 "RO (t)": round(ro_hist, 2), "ROD (t)": 0.0,
                 "Cartón total (t)": round(ca_hist, 2), "Lodo (t)": round(ld_hist, 2),
                 "Aserrín (t)": 0.0, "Estructurante / t lodo": 0.0,
-                "Masa total (t)": round(total_base_ton, 2),
-                "Humedad (%)": None, "Relación C/N": None,
+                "Masa total (t)": round(mezcla_hist["masa_ton"], 2),
+                "Humedad (%)": round(mezcla_hist["humedad"], 1),
+                "Relación C/N": round(mezcla_hist["cn"], 1) if mezcla_hist["cn"] != float("inf") else None,
             },
         ])
 
@@ -902,7 +996,25 @@ with tab_m2:
         elif estado_b in viables:
             st.warning(f"La alternativa con cartón es admisible, pero su estado es: {estado_b}.")
         else:
-            st.warning("Ninguna alternativa alcanza a la vez humedad y C/N adecuados. Revisa la combinación de materiales.")
+            todas_cn_ok = all(
+                cn_min <= m["cn"] <= cn_max for m in (mezcla_a, mezcla_b, mezcla_c)
+            )
+            if todas_cn_ok and all(e == "HUMEDAD BAJA" for e in (estado_a, estado_b, estado_c)):
+                st.warning(
+                    "La relación C/N se logra en las tres alternativas, pero la humedad resulta baja en todas "
+                    "(por debajo del mínimo configurado en la barra lateral). Esto ocurre porque el estructurante "
+                    "necesario para corregir el C/N seca demasiado la mezcla. Considera aumentar la proporción de "
+                    "residuo orgánico o lodo (más húmedos), o bajar el mínimo de humedad si tu experiencia de campo "
+                    "indica que ese rango es viable a esta altitud."
+                )
+            elif todas_cn_ok and all(e == "HUMEDAD ALTA" for e in (estado_a, estado_b, estado_c)):
+                st.warning(
+                    "La relación C/N se logra en las tres alternativas, pero la humedad resulta alta en todas. "
+                    "Considera aumentar la cantidad de estructurante seco (cartón o aserrín) más allá de lo "
+                    "estrictamente necesario para el C/N, solo para bajar humedad."
+                )
+            else:
+                st.warning("Ninguna alternativa alcanza a la vez humedad y C/N adecuados. Revisa la combinación de materiales.")
 
         st.markdown("**Resumen por alternativa** (si eliges esta opción, así quedaría la mezcla):")
 
@@ -998,6 +1110,10 @@ referenciales de literatura y debe recalibrarse cuando exista caracterización r
 # =================================================================
 with tab_m3:
     encabezado("Módulo 3 — Seguimiento de Pilas")
+    st.caption(
+        "Registra la temperatura, pH y humedad de cada lote a lo largo del tiempo, y recibe recomendaciones "
+        "automáticas según la fase del proceso en la que se encuentra."
+    )
 
     with st.expander("Fases del proceso de compostaje (referencia educativa)", expanded=False):
         st.caption(
@@ -1195,63 +1311,19 @@ with tab_m3:
             st.info("Aún no hay registros de seguimiento para este lote.")
 
 # =================================================================
-# MÓDULO 4 — INDICADORES Y STOCK
+# MÓDULO 4 — STOCK DE COMPOST
 # =================================================================
 with tab_m4:
-    encabezado("Módulo 4 — Indicadores y Stock")
+    encabezado("Módulo 4 — Stock de Compost")
+    st.caption(
+        "Registra los ingresos y salidas de compost terminado por lote (donación, vegetación u otro destino), "
+        "y consulta cuánto stock disponible queda en cada uno."
+    )
 
     if not st.session_state.lotes:
-        st.info("Aún no hay lotes registrados. Los indicadores se irán llenando a medida que uses los Módulos 1 y 3.")
+        st.info("Aún no hay lotes registrados. El stock se irá llenando a medida que uses el Módulo 1.")
     else:
-        # ---- 1. Estado operativo de lotes --------------------------
-        st.subheader("1. Estado operativo de lotes")
-        filas_operativo = []
-        for codigo_lote_ind, df_lote_ind in st.session_state.lotes.items():
-            masa_lote = df_lote_ind["masa_acumulada_ton"].iloc[-1] if "masa_acumulada_ton" in df_lote_ind.columns else 0
-            if codigo_lote_ind in st.session_state["seguimiento"]:
-                df_seg_ind = st.session_state["seguimiento"][codigo_lote_ind]
-                fase_actual = df_seg_ind["fase"].iloc[-1]
-                ultima_fecha = df_seg_ind["fecha"].iloc[-1]
-            else:
-                fase_actual = "Sin seguimiento registrado"
-                ultima_fecha = "—"
-            filas_operativo.append({
-                "Lote": codigo_lote_ind, "Masa acumulada (t)": round(masa_lote, 2),
-                "Fase actual": fase_actual, "Última medición": ultima_fecha,
-            })
-        df_operativo = pd.DataFrame(filas_operativo)
-        st.dataframe(df_operativo, use_container_width=True, hide_index=True)
-
-        oc1, oc2 = st.columns(2)
-        oc1.metric("Lotes activos", len(st.session_state.lotes))
-        oc2.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
-
-        # ---- 2. Valorización de residuos, desglosada por insumo ------
-        st.subheader("2. Valorización de residuos por tipo de insumo")
-        totales_insumo = {codigo: 0.0 for codigo in INSUMOS_REF}
-        for df_lote_ind in st.session_state.lotes.values():
-            for codigo in INSUMOS_REF:
-                col_ton = f"{codigo}_ton"
-                if col_ton in df_lote_ind.columns:
-                    totales_insumo[codigo] += df_lote_ind[col_ton].sum()
-
-        cols_val = st.columns(len(INSUMOS_REF))
-        for col, (codigo, total) in zip(cols_val, totales_insumo.items()):
-            col.metric(INSUMOS_REF[codigo]["nombre"], f"{total:.2f} t")
-
-        masa_total_valorizada = sum(totales_insumo.values())
-        st.metric("Total de residuos ingresados a compostaje", f"{masa_total_valorizada:.2f} t")
-        st.caption(
-            "Estas cifras representan los residuos que entraron al proceso (Módulo 1), como referencia de "
-            "cuánto se está desviando de disposición final por tipo de material."
-        )
-
-        # ---- 3. Stock de lotes y salida de compost terminado ----------
-        st.subheader("3. Stock de compost por lote")
-        st.caption(
-            "Registra aquí cuánto compost ha salido de cada lote (donación, vegetación, u otro destino), "
-            "con su número de ficha de pesaje, para saber cuánto queda disponible."
-        )
+        st.subheader("1. Registrar salida de compost")
 
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
@@ -1290,15 +1362,13 @@ with tab_m4:
                 st.session_state["salidas_compost"][lote_salida] = nueva_salida
             st.success(f"Salida registrada para el lote {lote_salida}.")
 
-        # ---- Tabla de stock por lote (ingresado - salidas) -------------
+        st.subheader("2. Stock por lote (ingresado - salidas)")
         filas_stock = []
         for codigo_lote_ind, df_lote_ind in st.session_state.lotes.items():
             ingresado = df_lote_ind["masa_acumulada_ton"].iloc[-1] if "masa_acumulada_ton" in df_lote_ind.columns else 0
             if codigo_lote_ind in st.session_state["salidas_compost"]:
-                df_salidas_lote = st.session_state["salidas_compost"][codigo_lote_ind]
-                salido = df_salidas_lote["cantidad_ton"].sum()
+                salido = st.session_state["salidas_compost"][codigo_lote_ind]["cantidad_ton"].sum()
             else:
-                df_salidas_lote = pd.DataFrame()
                 salido = 0.0
             filas_stock.append({
                 "Lote": codigo_lote_ind,
@@ -1314,50 +1384,25 @@ with tab_m4:
         sk2.metric("Total salido (todos los lotes)", f"{df_stock['Salido (t)'].sum():.2f} t")
         sk3.metric("Stock disponible total", f"{df_stock['Stock disponible (t)'].sum():.2f} t")
 
+        st.subheader("3. Distribución de salidas por destino")
+        todas_salidas = [df for df in st.session_state["salidas_compost"].values()]
+        if todas_salidas:
+            df_todas_salidas = pd.concat(todas_salidas, ignore_index=True)
+            resumen_destino = df_todas_salidas.groupby("destino")["cantidad_ton"].sum()
+            st.bar_chart(resumen_destino)
+            st.dataframe(
+                resumen_destino.reset_index().rename(columns={"destino": "Destino", "cantidad_ton": "Total (t)"}),
+                use_container_width=True, hide_index=True,
+            )
+        else:
+            st.caption("Aún no hay salidas registradas para graficar.")
+
         with st.expander("Ver historial completo de salidas por lote"):
             if st.session_state["salidas_compost"]:
                 lote_hist_salida = st.selectbox(
                     "Selecciona un lote", list(st.session_state["salidas_compost"].keys()), key="m4_hist_salida_sel"
                 )
-                df_hist_salida = st.session_state["salidas_compost"][lote_hist_salida]
-                st.dataframe(df_hist_salida, use_container_width=True, hide_index=True)
-                resumen_destino = df_hist_salida.groupby("destino")["cantidad_ton"].sum().reset_index()
-                resumen_destino.columns = ["Destino", "Total (t)"]
-                st.dataframe(resumen_destino, use_container_width=True, hide_index=True)
+                st.dataframe(st.session_state["salidas_compost"][lote_hist_salida], use_container_width=True, hide_index=True)
             else:
                 st.caption("Aún no hay salidas registradas.")
 
-        # ---- 4. Alertas acumuladas de seguimiento ----------------------
-        st.subheader("4. Alertas acumuladas de seguimiento")
-        total_altas = total_bajas = total_normales = 0
-        for df_seg_ind in st.session_state["seguimiento"].values():
-            for col_eval in ["eval_temp", "eval_ph", "eval_humedad"]:
-                if col_eval in df_seg_ind.columns:
-                    total_altas += (df_seg_ind[col_eval] == "alto").sum()
-                    total_bajas += (df_seg_ind[col_eval] == "bajo").sum()
-                    total_normales += (df_seg_ind[col_eval] == "normal").sum()
-
-        ac1, ac2, ac3 = st.columns(3)
-        ac1.metric("Mediciones normales", int(total_normales))
-        ac2.metric("Mediciones bajas", int(total_bajas))
-        ac3.metric("Mediciones altas", int(total_altas))
-        total_mediciones = total_altas + total_bajas + total_normales
-        if total_mediciones > 0:
-            pct_fuera_rango = ((total_altas + total_bajas) / total_mediciones) * 100
-            st.caption(f"{pct_fuera_rango:.0f}% de las mediciones registradas (temperatura, pH y humedad) salieron fuera del rango esperado de su fase.")
-        else:
-            st.caption("Aún no hay mediciones de seguimiento registradas en el Módulo 3.")
-
-        # ---- 5. Huella de carbono evitada (referencial) ------------------
-        st.subheader("5. Huella de carbono evitada (estimación referencial)")
-        st.caption(
-            "Cada tonelada de residuo orgánico compostada, en vez de dispuesta, evita emisiones de metano. "
-            "El factor de emisión es un valor de literatura y debe ajustarse a la realidad de la mina — "
-            "trátalo como una estimación, no como una cifra exacta para reporte oficial sin validar."
-        )
-        factor_emision = st.number_input(
-            "Factor de emisión (t CO2e evitadas por tonelada de residuo compostado)",
-            min_value=0.0, value=0.5, step=0.05, format="%.2f",
-        )
-        co2_evitado = masa_total_valorizada * factor_emision
-        st.metric("CO2e evitado estimado", f"{co2_evitado:.2f} t CO2e")
