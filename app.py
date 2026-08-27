@@ -639,13 +639,19 @@ if st.session_state.lotes:
                 "Factor CO2e (t/t)", min_value=0.0, value=st.session_state["factor_emision_top"], step=0.05, format="%.2f", key="factor_emision_input"
             )
 
-    ind1, ind2, ind3, ind4, ind5 = st.columns(5)
+    _compost_obtenido_top = sum(
+        d["cantidad_final_ton"] for d in st.session_state.get("zarandeo", {}).values()
+        if d["estado"] == "terminado"
+    )
+
+    ind1, ind2, ind3, ind4, ind5, ind6 = st.columns(6)
     ind1.metric("Lotes activos", len(st.session_state.lotes))
     ind2.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
     ind3.metric("Total ingresado a compostaje", f"{_masa_total_top:.2f} t")
     ind4.metric("Alertas acumuladas", int(_total_alertas_top))
     _factor_emision_top = st.session_state["factor_emision_top"]
     ind5.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
+    ind6.metric("Compost obtenido (zarandeado)", f"{_compost_obtenido_top:.2f} t")
     st.divider()
 
 tab_m1, tab_m2, tab_m3, tab_m4, tab_m5 = st.tabs([
@@ -1619,14 +1625,49 @@ with tab_m5:
                     cumple = False
                 if limite["max"] is not None and valor > limite["max"]:
                     cumple = False
-                rango_txt = f"{limite['min'] if limite['min'] is not None else '-'} a {limite['max'] if limite['max'] is not None else '-'}"
+                if limite["min"] is not None and limite["max"] is not None:
+                    rango_txt = f"{limite['min']} – {limite['max']}"
+                elif limite["min"] is not None:
+                    rango_txt = f"≥ {limite['min']}"
+                elif limite["max"] is not None:
+                    rango_txt = f"≤ {limite['max']}"
+                else:
+                    rango_txt = "-"
                 filas_reporte.append({
                     "Parámetro": limite["nombre"], "Resultado": valor,
                     "Rango NTP 201.207:2020": rango_txt, "Estado": "Cumple" if cumple else "No cumple",
                 })
 
             df_reporte = pd.DataFrame(filas_reporte)
-            st.dataframe(df_reporte, use_container_width=True, hide_index=True)
+
+            filas_html = ""
+            for _, fila in df_reporte.iterrows():
+                if fila["Estado"] == "Cumple":
+                    bg_estado, color_estado = "#E8F5E9", COLOR_VERDE
+                else:
+                    bg_estado, color_estado = "#FDECEA", COLOR_ROJO
+                filas_html += f"""
+                <tr>
+                    <td style="padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};">{fila['Parámetro']}</td>
+                    <td style="padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};">{fila['Resultado']}</td>
+                    <td style="padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};">{fila['Rango NTP 201.207:2020']}</td>
+                    <td style="padding:8px 12px; border-bottom:1px solid {COLOR_BORDE}; background-color:{bg_estado}; color:{color_estado}; font-weight:600;">{fila['Estado']}</td>
+                </tr>
+                """
+            tabla_html = f"""
+            <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                <thead>
+                    <tr style="background-color:{COLOR_AZUL};">
+                        <th style="padding:8px 12px; text-align:left; color:white;">Parámetro</th>
+                        <th style="padding:8px 12px; text-align:left; color:white;">Resultado</th>
+                        <th style="padding:8px 12px; text-align:left; color:white;">Rango NTP 201.207:2020</th>
+                        <th style="padding:8px 12px; text-align:left; color:white;">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>{filas_html}</tbody>
+            </table>
+            """
+            st.markdown(tabla_html, unsafe_allow_html=True)
 
             n_no_cumple = (df_reporte["Estado"] == "No cumple").sum()
             if n_no_cumple == 0:
