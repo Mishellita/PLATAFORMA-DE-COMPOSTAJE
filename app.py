@@ -113,6 +113,11 @@ st.markdown(
     [data-testid="stSidebar"] div[data-baseweb="input"] {{
         color: {COLOR_TEXTO} !important;
     }}
+    /* El contenido de los desplegables (expanders) en la barra lateral
+       tiene fondo claro, así que su texto debe quedar oscuro, no blanco. */
+    [data-testid="stSidebar"] [data-testid="stExpander"] * {{
+        color: {COLOR_TEXTO} !important;
+    }}
 
     /* Jerarquía tipográfica: títulos más grandes, texto de cuerpo más pequeño */
     h1 {{ font-size: 26px !important; font-weight: 700 !important; }}
