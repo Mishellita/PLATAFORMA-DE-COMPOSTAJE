@@ -280,41 +280,20 @@ st.markdown(
 # ===============================================================
 
 def mostrar_encabezado_app():
-    ruta_logo = buscar_archivo_logo()
-
-    col_logo, col_texto = st.columns([1.4, 8.6], vertical_alignment="center")
-
-    with col_logo:
-        if ruta_logo:
-            st.image(ruta_logo, width=150)
-        else:
-            st.markdown(
-                f"""
-                <div style="width:58px; height:58px; border-radius:50%; background:{COLOR_AZUL};
-                            display:flex; align-items:center; justify-content:center;
-                            box-shadow:0 2px 8px rgba(3,23,149,0.25);">
-                    <span style="color:white; font-size:14px; font-weight:700;">AA</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    with col_texto:
-        st.markdown(
-            f"""
-            <div style="padding-top:4px; padding-bottom:4px;">
-                <div style="color:{COLOR_AZUL}; font-size:26px; font-weight:700; line-height:1.15; margin:0;">
-                    PLATAFORMA PARA LA GESTIÓN DE COMPOSTAJE (Primera edición)
-                </div>
-                <div style="color:{COLOR_TEXTO_SECUNDARIO}; font-size:14px; font-weight:400; margin-top:6px;">
-                    Sistema de apoyo para formulaciones y gestión de compostaje
-                </div>
+    st.markdown(
+        f"""
+        <div style="padding-top:4px; padding-bottom:4px;">
+            <div style="color:{COLOR_AZUL}; font-size:34px; font-weight:700; line-height:1.15; margin:0;">
+                Plataforma para la gestión del compostaje — Primera edición
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            <div style="color:{COLOR_TEXTO_SECUNDARIO}; font-size:17px; font-weight:400; margin-top:8px;">
+                Sistema de apoyo para formulaciones y gestión de compostaje
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.divider()
-
 
 def encabezado(texto):
     """Barra de título de cada módulo, sin íconos ni subtítulo — solo el nombre."""
@@ -592,7 +571,7 @@ if st.session_state.lotes:
             f"""
             <div style="border:1.5px solid {COLOR_AZUL_CLARO}; border-radius:10px;
                         padding:10px 16px; background-color: rgba(171, 203, 250, 0.18);">
-                <span style="color:{COLOR_AZUL}; font-weight:600; font-size:14px;">Indicadores de seguimiento</span>
+                <span style="color:{COLOR_AZUL}; font-weight:600; font-size:14px; display:block; text-align:center;">INDICADORES DE SEGUIMIENTO</span>
             </div>
             """,
             unsafe_allow_html=True,
