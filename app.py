@@ -177,7 +177,7 @@ st.markdown(
     }}
 
     .stButton > button[kind="primary"]:hover {{
-        background-color: {COLOR_SMART_BLUE} !important;
+        background-color: {COLOR_AZUL} !important;
         color: white !important;
     }}
 
