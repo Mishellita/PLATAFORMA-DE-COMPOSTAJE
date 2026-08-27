@@ -597,6 +597,7 @@ if st.session_state.lotes:
         st.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
     st.divider()
 
+tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
