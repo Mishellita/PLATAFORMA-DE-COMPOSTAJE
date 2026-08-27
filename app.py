@@ -541,7 +541,27 @@ st.sidebar.caption(
     "Rango base de literatura: 50-60% humedad para iniciar etapa mesófila. "
     "El ajuste aquí queda registrado como adaptación en observación, no como error."
 )
-
+st.sidebar.divider()
+with st.sidebar.expander("Parámetros de insumos (actualizar con caracterización real)"):
+    st.caption(
+        "Si el laboratorio entrega una nueva caracterización, ajusta aquí los valores base "
+        "para que todos los módulos recalculen automáticamente con los datos nuevos."
+    )
+    for codigo_insumo_sb in INSUMOS_REF:
+        st.markdown(f"*{INSUMOS_REF[codigo_insumo_sb]['nombre']} ({codigo_insumo_sb})*")
+        col_h, col_c, col_n = st.columns(3)
+        INSUMOS_REF[codigo_insumo_sb]["humedad"] = col_h.number_input(
+            "Humedad %", value=float(INSUMOS_REF[codigo_insumo_sb]["humedad"]),
+            min_value=0.0, max_value=100.0, step=1.0, key=f"param_hum_{codigo_insumo_sb}"
+        )
+        INSUMOS_REF[codigo_insumo_sb]["carbono"] = col_c.number_input(
+            "Carbono %", value=float(INSUMOS_REF[codigo_insumo_sb]["carbono"]),
+            min_value=0.0, max_value=100.0, step=1.0, key=f"param_c_{codigo_insumo_sb}"
+        )
+        INSUMOS_REF[codigo_insumo_sb]["nitrogeno"] = col_n.number_input(
+            "Nitrógeno %", value=float(INSUMOS_REF[codigo_insumo_sb]["nitrogeno"]),
+            min_value=0.0, max_value=100.0, step=0.01, format="%.2f", key=f"param_n_{codigo_insumo_sb}"
+        )
 # ---------------------------------------------------------------
 # 5. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
