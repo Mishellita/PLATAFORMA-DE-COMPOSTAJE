@@ -586,10 +586,18 @@ if st.session_state.lotes:
     if "factor_emision_top" not in st.session_state:
         st.session_state["factor_emision_top"] = 0.5
 
-    fila_titulo_1, fila_titulo_2, fila_titulo_3, fila_titulo_4, fila_titulo_5 = st.columns(5)
-    with fila_titulo_1:
-        st.caption("Indicadores de seguimiento")
-    with fila_titulo_5:
+    fila_titulo_ancho, fila_titulo_factor = st.columns([4, 1])
+    with fila_titulo_ancho:
+        st.markdown(
+            f"""
+            <div style="border:1.5px solid {COLOR_AZUL_CLARO}; border-radius:10px;
+                        padding:10px 16px; background-color: rgba(171, 203, 250, 0.18);">
+                <span style="color:{COLOR_AZUL}; font-weight:600; font-size:14px;">Indicadores de seguimiento</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with fila_titulo_factor:
         with st.expander("Ajustar factor"):
             st.session_state["factor_emision_top"] = st.number_input(
                 "Factor CO2e (t/t)", min_value=0.0, value=st.session_state["factor_emision_top"], step=0.05, format="%.2f", key="factor_emision_input"
