@@ -106,6 +106,13 @@ st.markdown(
     [data-testid="stSidebar"] div {{
         color: white !important;
     }}
+    /* Excepción: el texto DENTRO de los recuadros de los campos
+       (donde se escriben los números) debe quedar oscuro, porque
+       esos recuadros tienen fondo blanco. */
+    [data-testid="stSidebar"] input,
+    [data-testid="stSidebar"] div[data-baseweb="input"] {{
+        color: {COLOR_TEXTO} !important;
+    }}
 
     /* Jerarquía tipográfica: títulos más grandes, texto de cuerpo más pequeño */
     h1 {{ font-size: 26px !important; font-weight: 700 !important; }}
