@@ -598,6 +598,11 @@ if st.session_state.lotes:
     st.divider()
 
 tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
+    "Módulo 1 — Formulación de Lotes",
+    "Módulo 2 — Capacidad de Estructurante",
+    "Módulo 3 — Seguimiento de Pilas",
+    "Módulo 4 — Stock de Compost",
+])
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
