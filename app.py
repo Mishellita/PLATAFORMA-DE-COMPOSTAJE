@@ -566,59 +566,38 @@ st.sidebar.warning(
 )
 
 # ---------------------------------------------------------------
-# INDICADORES GENERALES (visibles en todo momento, en cualquier módulo)
-# ---------------------------------------------------------------
-st.sidebar.divider()
-st.sidebar.header("Indicadores generales")
-
-if not st.session_state.lotes:
-    st.sidebar.caption("Aún no hay lotes registrados.")
-else:
-    st.sidebar.metric("Lotes activos", len(st.session_state.lotes))
-    st.sidebar.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
-
-    _totales_insumo_sb = {codigo: 0.0 for codigo in INSUMOS_REF}
-    for _df_lote_sb in st.session_state.lotes.values():
-        for _codigo_sb in INSUMOS_REF:
-            _col_ton_sb = f"{_codigo_sb}_ton"
-            if _col_ton_sb in _df_lote_sb.columns:
-                _totales_insumo_sb[_codigo_sb] += _df_lote_sb[_col_ton_sb].sum()
-    _masa_total_valorizada_sb = sum(_totales_insumo_sb.values())
-
-    st.sidebar.metric("Total ingresado a compostaje", f"{_masa_total_valorizada_sb:.2f} t")
-    with st.sidebar.expander("Ver valorización por insumo"):
-        for _codigo_sb, _total_sb in _totales_insumo_sb.items():
-            st.caption(f"{INSUMOS_REF[_codigo_sb]['nombre']}: {_total_sb:.2f} t")
-
-    _total_altas_sb = _total_bajas_sb = _total_normales_sb = 0
-    for _df_seg_sb in st.session_state["seguimiento"].values():
-        for _col_eval_sb in ["eval_temp", "eval_ph", "eval_humedad"]:
-            if _col_eval_sb in _df_seg_sb.columns:
-                _total_altas_sb += (_df_seg_sb[_col_eval_sb] == "alto").sum()
-                _total_bajas_sb += (_df_seg_sb[_col_eval_sb] == "bajo").sum()
-                _total_normales_sb += (_df_seg_sb[_col_eval_sb] == "normal").sum()
-    _total_mediciones_sb = _total_altas_sb + _total_bajas_sb + _total_normales_sb
-    st.sidebar.metric("Alertas acumuladas (temp/pH/humedad)", int(_total_altas_sb + _total_bajas_sb))
-    if _total_mediciones_sb > 0:
-        st.sidebar.caption(f"{((_total_altas_sb + _total_bajas_sb) / _total_mediciones_sb) * 100:.0f}% de las mediciones salieron fuera de rango.")
-
-    st.sidebar.caption("Huella de carbono evitada (estimación referencial):")
-    _factor_emision_sb = st.sidebar.number_input(
-        "Factor de emisión (t CO2e / t compostada)", min_value=0.0, value=0.5, step=0.05, format="%.2f", key="factor_emision_sidebar"
-    )
-    st.sidebar.metric("CO2e evitado estimado", f"{_masa_total_valorizada_sb * _factor_emision_sb:.2f} t CO2e")
-
-# ---------------------------------------------------------------
 # 5. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
 mostrar_encabezado_app()
 
+if st.session_state.lotes:
+    _totales_insumo_top = {codigo: 0.0 for codigo in INSUMOS_REF}
+    for _df_lote_top in st.session_state.lotes.values():
+        for _codigo_top in INSUMOS_REF:
+            _col_ton_top = f"{_codigo_top}_ton"
+            if _col_ton_top in _df_lote_top.columns:
+                _totales_insumo_top[_codigo_top] += _df_lote_top[_col_ton_top].sum()
+    _masa_total_top = sum(_totales_insumo_top.values())
+
+    _total_alertas_top = 0
+    for _df_seg_top in st.session_state["seguimiento"].values():
+        for _col_eval_top in ["eval_temp", "eval_ph", "eval_humedad"]:
+            if _col_eval_top in _df_seg_top.columns:
+                _total_alertas_top += (_df_seg_top[_col_eval_top] != "normal").sum()
+
+    ind1, ind2, ind3, ind4, ind5 = st.columns(5)
+    ind1.metric("Lotes activos", len(st.session_state.lotes))
+    ind2.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
+    ind3.metric("Total ingresado a compostaje", f"{_masa_total_top:.2f} t")
+    ind4.metric("Alertas acumuladas", int(_total_alertas_top))
+    with ind5:
+        _factor_emision_top = st.number_input(
+            "Factor CO2e (t/t)", min_value=0.0, value=0.5, step=0.05, format="%.2f", key="factor_emision_top"
+        )
+        st.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
+    st.divider()
+
 tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
-    "Módulo 1 — Formulación de Lotes",
-    "Módulo 2 — Capacidad de Estructurante",
-    "Módulo 3 — Seguimiento de Pilas",
-    "Módulo 4 — Indicadores y Stock",
-])
 
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
