@@ -1438,7 +1438,9 @@ with tab_m4:
             })
         if not filas_stock:
             st.info("Aún no hay lotes con zarandeo terminado. El stock se llena una vez que un lote pasa por esa etapa.")
-        df_stock = pd.DataFrame(filas_stock)
+            df_stock = pd.DataFrame(columns=["Lote", "Ingresado (t)", "Salido (t)", "Stock disponible (t)"])
+        else:
+            df_stock = pd.DataFrame(filas_stock)
         st.dataframe(df_stock, use_container_width=True, hide_index=True)
 
         sk1, sk2, sk3 = st.columns(3)
