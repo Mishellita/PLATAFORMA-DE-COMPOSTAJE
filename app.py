@@ -454,6 +454,31 @@ if "consultas_aserrin" not in st.session_state:
     st.session_state["consultas_aserrin"] = []
 if "salidas_compost" not in st.session_state:
     st.session_state["salidas_compost"] = {}
+if "laboratorio" not in st.session_state:
+    st.session_state["laboratorio"] = {}
+
+# Límites según NTP 201.207:2020 (FERTILIZANTES. Compost para uso agrícola.
+# Requisitos, 1ª Edición). Se usa como referencia técnica, aunque tu compost
+# no sea exactamente para ese uso — es la norma peruana disponible.
+LIMITES_NTP = {
+    "humedad":            {"nombre": "Humedad (%)",                          "min": 15,  "max": 35},
+    "conductividad":      {"nombre": "Conductividad eléctrica (dS/m, dil. 1:5)", "min": None, "max": 5},
+    "relacion_cn":        {"nombre": "Relación C/N (compost maduro)",        "min": 10,  "max": 25},
+    "ph":                 {"nombre": "pH (dilución 1:5)",                    "min": 5.0, "max": 8.5},
+    "materia_organica":   {"nombre": "Materia orgánica (%)",                 "min": 20,  "max": None},
+    "nitrogeno":          {"nombre": "Nitrógeno (%)",                        "min": 0.3, "max": 1.5},
+    "fosforo":            {"nombre": "Fósforo (%)",                         "min": 0.1, "max": 1.0},
+    "potasio":            {"nombre": "Potasio (%)",                         "min": 0.3, "max": 1.0},
+    "arsenico":           {"nombre": "Arsénico (mg/kg, base seca)",         "min": None, "max": 20},
+    "cadmio":             {"nombre": "Cadmio (mg/kg, base seca)",           "min": None, "max": 1},
+    "cromo":              {"nombre": "Cromo (mg/kg, base seca)",            "min": None, "max": 100},
+    "mercurio":           {"nombre": "Mercurio (mg/kg, base seca)",         "min": None, "max": 1},
+    "niquel":             {"nombre": "Níquel (mg/kg, base seca)",           "min": None, "max": 60},
+    "plomo":              {"nombre": "Plomo (mg/kg, base seca)",            "min": None, "max": 150},
+    "coliformes_fecales": {"nombre": "Coliformes fecales (NMP/g, base seca)", "min": None, "max": 1000},
+    "salmonella":         {"nombre": "Salmonella spp (NMP en 4g, base seca)", "min": None, "max": 3},
+    "huevos_helmintos":   {"nombre": "Huevos de helmintos viables (en 4g, base seca)", "min": None, "max": 1},
+}
 if "zarandeo" not in st.session_state:
     st.session_state["zarandeo"] = {}
 # Lista de operadores para el selector.
@@ -628,6 +653,7 @@ tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
     "Módulo 2 — Capacidad de Estructurante",
     "Módulo 3 — Seguimiento de Pilas",
     "Módulo 4 — Stock de Compost",
+    "Módulo 5 — Análisis de laboratorio",
 ])
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
