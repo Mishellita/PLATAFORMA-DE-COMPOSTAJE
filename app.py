@@ -138,7 +138,7 @@ st.markdown(
     }}
 
     .stTabs [aria-selected="true"] {{
-        background-color: {COLOR_BLANCO} !important;
+        background-color: rgba(171, 203, 250, 0.25) !important;
         color: {COLOR_AZUL} !important;
         font-weight: 700 !important;
         border-bottom: 3px solid {COLOR_AZUL} !important;
@@ -216,7 +216,7 @@ st.markdown(
     /* ---------------- TARJETAS DE MÉTRICAS (estilo KPI) ---------------- */
 
     div[data-testid="stMetric"] {{
-        background-color: {COLOR_BLANCO};
+        background-color: rgba(171, 203, 250, 0.18);
         border: 1.5px solid {COLOR_AZUL_CLARO};
         border-radius: 14px;
         padding: 16px 18px;
@@ -591,12 +591,12 @@ if st.session_state.lotes:
     with ind5:
         if "factor_emision_top" not in st.session_state:
             st.session_state["factor_emision_top"] = 0.5
-        _factor_emision_top = st.session_state["factor_emision_top"]
-        st.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
         with st.expander("Ajustar factor"):
             st.session_state["factor_emision_top"] = st.number_input(
-                "Factor CO2e (t/t)", min_value=0.0, value=_factor_emision_top, step=0.05, format="%.2f", key="factor_emision_input"
+                "Factor CO2e (t/t)", min_value=0.0, value=st.session_state["factor_emision_top"], step=0.05, format="%.2f", key="factor_emision_input"
             )
+        _factor_emision_top = st.session_state["factor_emision_top"]
+        st.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
     st.divider()
 
 tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
