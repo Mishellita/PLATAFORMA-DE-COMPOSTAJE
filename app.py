@@ -463,7 +463,8 @@ if "consultas_aserrin" not in st.session_state:
     st.session_state["consultas_aserrin"] = []
 if "salidas_compost" not in st.session_state:
     st.session_state["salidas_compost"] = {}
-
+if "zarandeo" not in st.session_state:
+    st.session_state["zarandeo"] = {}
 # Lista de operadores para el selector.
 OPERADORES = ["Adrián Carpio", "Fernando Valdivia", "Michelle Rubiz", "Otro"]
 
@@ -1326,7 +1327,63 @@ with tab_m4:
     if not st.session_state.lotes:
         st.info("Aún no hay lotes registrados. El stock se irá llenando a medida que uses el Módulo 1.")
     else:
-        st.subheader("1. Registrar salida de compost")
+        st.subheader("1. Lotes culminados y proceso de zarandeo")
+        st.caption("Cuando un lote termina maduración, márcalo aquí para iniciar el zarandeo antes de pasar a stock.")
+
+        lotes_sin_zarandeo = [l for l in st.session_state.lotes if l not in st.session_state["zarandeo"]]
+        if lotes_sin_zarandeo:
+            col_z1, col_z2 = st.columns([3, 1])
+            with col_z1:
+                lote_culminar = st.selectbox("Lote culminado", lotes_sin_zarandeo, key="m4_lote_culminar")
+            with col_z2:
+                st.write("")
+                if st.button("Iniciar zarandeo", key="m4_btn_iniciar_zarandeo"):
+                    cantidad_inicial = st.session_state.lotes[lote_culminar]["masa_acumulada_ton"].iloc[-1]
+                    st.session_state["zarandeo"][lote_culminar] = {
+                        "estado": "en_zarandeo", "fecha_inicio": date.today(),
+                        "cantidad_inicial_ton": cantidad_inicial,
+                        "fecha_fin": None, "cantidad_final_ton": None, "ficha_pesaje": None,
+                    }
+                    st.rerun()
+
+        lotes_en_zarandeo = [l for l, d in st.session_state["zarandeo"].items() if d["estado"] == "en_zarandeo"]
+        if lotes_en_zarandeo:
+            st.markdown("*Lotes actualmente en zarandeo:*")
+            for lote_z in lotes_en_zarandeo:
+                datos_z = st.session_state["zarandeo"][lote_z]
+                dias_zarandeo = (date.today() - datos_z["fecha_inicio"]).days
+                st.write(f"{lote_z} — inició zarandeo el {datos_z['fecha_inicio']} ({dias_zarandeo} días en proceso), cantidad ingresada al zarandeo: {datos_z['cantidad_inicial_ton']:.2f} t")
+
+                col_zf1, col_zf2, col_zf3 = st.columns(3)
+                with col_zf1:
+                    cantidad_final = st.number_input(f"Cantidad tamizada final (t) — {lote_z}", min_value=0.0, step=0.05, format="%.2f", key=f"m4_cant_final_{lote_z}")
+                with col_zf2:
+                    ficha_zarandeo = st.text_input(f"N° ficha de pesaje — {lote_z}", key=f"m4_ficha_z_{lote_z}")
+                with col_zf3:
+                    st.write("")
+                    if st.button(f"Registrar zarandeo terminado", key=f"m4_btn_fin_{lote_z}"):
+                        if cantidad_final == 0 or not ficha_zarandeo:
+                            st.error("Completa la cantidad final y el N° de ficha de pesaje.")
+                        else:
+                            datos_z["estado"] = "terminado"
+                            datos_z["fecha_fin"] = date.today()
+                            datos_z["cantidad_final_ton"] = cantidad_final
+                            datos_z["ficha_pesaje"] = ficha_zarandeo
+                            st.success(f"Zarandeo del lote {lote_z} registrado: {cantidad_final:.2f} t ({cantidad_final*1000:.0f} kg).")
+                            st.rerun()
+
+        lotes_terminados_z = {l: d for l, d in st.session_state["zarandeo"].items() if d["estado"] == "terminado"}
+        if lotes_terminados_z:
+            with st.expander("Ver lotes con zarandeo terminado"):
+                df_zarandeo_terminado = pd.DataFrame([
+                    {"Lote": l, "Cantidad inicial (t)": d["cantidad_inicial_ton"], "Cantidad final (t)": d["cantidad_final_ton"],
+                     "Cantidad final (kg)": d["cantidad_final_ton"] * 1000, "Días de zarandeo": (d["fecha_fin"] - d["fecha_inicio"]).days,
+                     "Ficha de pesaje": d["ficha_pesaje"]}
+                    for l, d in lotes_terminados_z.items()
+                ])
+                st.dataframe(df_zarandeo_terminado, use_container_width=True, hide_index=True)
+
+        st.subheader("2. Registrar salida de compost")
 
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
@@ -1365,10 +1422,10 @@ with tab_m4:
                 st.session_state["salidas_compost"][lote_salida] = nueva_salida
             st.success(f"Salida registrada para el lote {lote_salida}.")
 
-        st.subheader("2. Stock por lote (ingresado - salidas)")
+        st.subheader("3. Stock por lote (solo lotes con zarandeo terminado)")
         filas_stock = []
-        for codigo_lote_ind, df_lote_ind in st.session_state.lotes.items():
-            ingresado = df_lote_ind["masa_acumulada_ton"].iloc[-1] if "masa_acumulada_ton" in df_lote_ind.columns else 0
+        for codigo_lote_ind in lotes_terminados_z:
+            ingresado = lotes_terminados_z[codigo_lote_ind]["cantidad_final_ton"]
             if codigo_lote_ind in st.session_state["salidas_compost"]:
                 salido = st.session_state["salidas_compost"][codigo_lote_ind]["cantidad_ton"].sum()
             else:
@@ -1379,6 +1436,8 @@ with tab_m4:
                 "Salido (t)": round(salido, 2),
                 "Stock disponible (t)": round(ingresado - salido, 2),
             })
+        if not filas_stock:
+            st.info("Aún no hay lotes con zarandeo terminado. El stock se llena una vez que un lote pasa por esa etapa.")
         df_stock = pd.DataFrame(filas_stock)
         st.dataframe(df_stock, use_container_width=True, hide_index=True)
 
