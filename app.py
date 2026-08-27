@@ -583,20 +583,25 @@ if st.session_state.lotes:
             if _col_eval_top in _df_seg_top.columns:
                 _total_alertas_top += (_df_seg_top[_col_eval_top] != "normal").sum()
 
+    if "factor_emision_top" not in st.session_state:
+        st.session_state["factor_emision_top"] = 0.5
+
+    fila_titulo_1, fila_titulo_2, fila_titulo_3, fila_titulo_4, fila_titulo_5 = st.columns(5)
+    with fila_titulo_1:
+        st.caption("Indicadores de seguimiento")
+    with fila_titulo_5:
+        with st.expander("Ajustar factor"):
+            st.session_state["factor_emision_top"] = st.number_input(
+                "Factor CO2e (t/t)", min_value=0.0, value=st.session_state["factor_emision_top"], step=0.05, format="%.2f", key="factor_emision_input"
+            )
+
     ind1, ind2, ind3, ind4, ind5 = st.columns(5)
     ind1.metric("Lotes activos", len(st.session_state.lotes))
     ind2.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
     ind3.metric("Total ingresado a compostaje", f"{_masa_total_top:.2f} t")
     ind4.metric("Alertas acumuladas", int(_total_alertas_top))
-    with ind5:
-        if "factor_emision_top" not in st.session_state:
-            st.session_state["factor_emision_top"] = 0.5
-        with st.expander("Ajustar factor"):
-            st.session_state["factor_emision_top"] = st.number_input(
-                "Factor CO2e (t/t)", min_value=0.0, value=st.session_state["factor_emision_top"], step=0.05, format="%.2f", key="factor_emision_input"
-            )
-        _factor_emision_top = st.session_state["factor_emision_top"]
-        st.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
+    _factor_emision_top = st.session_state["factor_emision_top"]
+    ind5.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
     st.divider()
 
 tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
