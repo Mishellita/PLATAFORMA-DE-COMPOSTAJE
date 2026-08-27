@@ -101,8 +101,10 @@ st.markdown(
     [data-testid="stSidebar"] h2,
     [data-testid="stSidebar"] h3,
     [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] p {{
-        color: {COLOR_TEXTO};
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] div {{
+        color: white !important;
     }}
 
     /* Jerarquía tipográfica: títulos más grandes, texto de cuerpo más pequeño */
@@ -215,7 +217,7 @@ st.markdown(
 
     div[data-testid="stMetric"] {{
         background-color: {COLOR_BLANCO};
-        border: 1px solid {COLOR_BORDE};
+        border: 1.5px solid {COLOR_AZUL_CLARO};
         border-radius: 14px;
         padding: 16px 18px;
         box-shadow: 0 2px 10px rgba(3, 23, 149, 0.05);
@@ -557,12 +559,6 @@ st.sidebar.divider()
 st.sidebar.caption(
     "Rango base de literatura: 50-60% humedad para iniciar etapa mesófila. "
     "El ajuste aquí queda registrado como adaptación en observación, no como error."
-)
-st.sidebar.divider()
-st.sidebar.warning(
-    "Prototipo: los datos ingresados viven solo en esta sesión del "
-    "navegador. Si se recarga la página o la app se reinicia, se pierden. "
-    "El guardado permanente (Google Sheets) queda pendiente como siguiente fase."
 )
 
 # ---------------------------------------------------------------
