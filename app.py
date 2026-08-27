@@ -644,14 +644,17 @@ if st.session_state.lotes:
         if d["estado"] == "terminado"
     )
 
-    ind1, ind2, ind3, ind4, ind5, ind6 = st.columns(6)
-    ind1.metric("Lotes activos", len(st.session_state.lotes))
-    ind2.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
-    ind3.metric("Total ingresado a compostaje", f"{_masa_total_top:.2f} t")
-    ind4.metric("Alertas acumuladas", int(_total_alertas_top))
-    _factor_emision_top = st.session_state["factor_emision_top"]
-    ind5.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
-    ind6.metric("Compost obtenido (zarandeado)", f"{_compost_obtenido_top:.2f} t")
+    bloque_ancho, bloque_factor = st.columns([4, 1])
+    with bloque_ancho:
+        ind1, ind2, ind3, ind4, ind5 = st.columns(5)
+        ind1.metric("Lotes activos", len(st.session_state.lotes))
+        ind2.metric("Lotes con seguimiento", len(st.session_state["seguimiento"]))
+        ind3.metric("Total ingresado a compostaje", f"{_masa_total_top:.2f} t")
+        ind4.metric("Alertas acumuladas", int(_total_alertas_top))
+        ind5.metric("Compost obtenido (zarandeado)", f"{_compost_obtenido_top:.2f} t")
+    with bloque_factor:
+        _factor_emision_top = st.session_state["factor_emision_top"]
+        st.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
     st.divider()
 
 tab_m1, tab_m2, tab_m3, tab_m4, tab_m5 = st.tabs([
@@ -1646,27 +1649,25 @@ with tab_m5:
                     bg_estado, color_estado = "#E8F5E9", COLOR_VERDE
                 else:
                     bg_estado, color_estado = "#FDECEA", COLOR_ROJO
-                filas_html += f"""
-                <tr>
-                    <td style="padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};">{fila['Parámetro']}</td>
-                    <td style="padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};">{fila['Resultado']}</td>
-                    <td style="padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};">{fila['Rango NTP 201.207:2020']}</td>
-                    <td style="padding:8px 12px; border-bottom:1px solid {COLOR_BORDE}; background-color:{bg_estado}; color:{color_estado}; font-weight:600;">{fila['Estado']}</td>
-                </tr>
-                """
-            tabla_html = f"""
-            <table style="width:100%; border-collapse:collapse; font-size:14px;">
-                <thead>
-                    <tr style="background-color:{COLOR_AZUL};">
-                        <th style="padding:8px 12px; text-align:left; color:white;">Parámetro</th>
-                        <th style="padding:8px 12px; text-align:left; color:white;">Resultado</th>
-                        <th style="padding:8px 12px; text-align:left; color:white;">Rango NTP 201.207:2020</th>
-                        <th style="padding:8px 12px; text-align:left; color:white;">Estado</th>
-                    </tr>
-                </thead>
-                <tbody>{filas_html}</tbody>
-            </table>
-            """
+                filas_html += (
+                    "<tr>"
+                    f"<td style='padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};'>{fila['Parámetro']}</td>"
+                    f"<td style='padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};'>{fila['Resultado']}</td>"
+                    f"<td style='padding:8px 12px; border-bottom:1px solid {COLOR_BORDE};'>{fila['Rango NTP 201.207:2020']}</td>"
+                    f"<td style='padding:8px 12px; border-bottom:1px solid {COLOR_BORDE}; background-color:{bg_estado}; color:{color_estado}; font-weight:600;'>{fila['Estado']}</td>"
+                    "</tr>"
+                )
+            tabla_html = (
+                "<table style='width:100%; border-collapse:collapse; font-size:14px;'>"
+                f"<thead><tr style='background-color:{COLOR_AZUL};'>"
+                "<th style='padding:8px 12px; text-align:left; color:white;'>Parámetro</th>"
+                "<th style='padding:8px 12px; text-align:left; color:white;'>Resultado</th>"
+                "<th style='padding:8px 12px; text-align:left; color:white;'>Rango NTP 201.207:2020</th>"
+                "<th style='padding:8px 12px; text-align:left; color:white;'>Estado</th>"
+                "</tr></thead>"
+                f"<tbody>{filas_html}</tbody>"
+                "</table>"
+            )
             st.markdown(tabla_html, unsafe_allow_html=True)
 
             n_no_cumple = (df_reporte["Estado"] == "No cumple").sum()
