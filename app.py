@@ -237,6 +237,7 @@ st.markdown(
 
     div[data-baseweb="input"], div[data-baseweb="select"] > div, textarea {{
         border-radius: 10px !important;
+        border: 1.5px solid {COLOR_AZUL_CLARO} !important;
     }}
 
     /* ---------------- TABLAS Y EXPANDERS ---------------- */
@@ -587,10 +588,14 @@ if st.session_state.lotes:
     ind3.metric("Total ingresado a compostaje", f"{_masa_total_top:.2f} t")
     ind4.metric("Alertas acumuladas", int(_total_alertas_top))
     with ind5:
-        _factor_emision_top = st.number_input(
-            "Factor CO2e (t/t)", min_value=0.0, value=0.5, step=0.05, format="%.2f", key="factor_emision_top"
-        )
+        if "factor_emision_top" not in st.session_state:
+            st.session_state["factor_emision_top"] = 0.5
+        _factor_emision_top = st.session_state["factor_emision_top"]
         st.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
+        with st.expander("Ajustar factor"):
+            st.session_state["factor_emision_top"] = st.number_input(
+                "Factor CO2e (t/t)", min_value=0.0, value=_factor_emision_top, step=0.05, format="%.2f", key="factor_emision_input"
+            )
     st.divider()
 
 tab_m1, tab_m2, tab_m3, tab_m4 = st.tabs([
