@@ -1519,4 +1519,128 @@ with tab_m4:
                 st.dataframe(st.session_state["salidas_compost"][lote_hist_salida], use_container_width=True, hide_index=True)
             else:
                 st.caption("Aún no hay salidas registradas.")
+# =================================================================
+# MÓDULO 5 — ANÁLISIS DE LABORATORIO
+# =================================================================
+with tab_m5:
+    encabezado("Módulo 5 — Análisis de Laboratorio")
+    st.caption(
+        "Registra el envío de muestras a laboratorio, el conteo de días de espera, y compara "
+        "los resultados contra la NTP 201.207:2020 (referencia peruana disponible para compost)."
+    )
 
+    if not st.session_state.lotes:
+        st.info("Aún no hay lotes registrados.")
+    else:
+        st.subheader("1. Enviar lote a laboratorio")
+        col_l1, col_l2 = st.columns(2)
+        with col_l1:
+            lote_lab = st.selectbox("Lote", list(st.session_state.lotes.keys()), key="m5_lote")
+        with col_l2:
+            fecha_envio_lab = st.date_input("Fecha de envío a laboratorio", value=date.today(), key="m5_fecha_envio")
+
+        if st.button("Registrar envío a laboratorio", type="primary"):
+            st.session_state["laboratorio"][lote_lab] = {
+                "fecha_envio": fecha_envio_lab, "fecha_resultado": None, "resultados": None,
+            }
+            st.success(f"Envío registrado para el lote {lote_lab}.")
+            st.rerun()
+
+        st.subheader("2. Lotes esperando resultados")
+        lotes_esperando = {l: d for l, d in st.session_state["laboratorio"].items() if d["resultados"] is None}
+        if lotes_esperando:
+            for l_espera, d_espera in lotes_esperando.items():
+                dias_espera = (date.today() - d_espera["fecha_envio"]).days
+                st.write(f"{l_espera} — enviado el {d_espera['fecha_envio']} ({dias_espera} días esperando resultados)")
+        else:
+            st.caption("No hay lotes esperando resultados en este momento.")
+
+        st.subheader("3. Cargar resultados de laboratorio")
+        if lotes_esperando:
+            lote_resultado = st.selectbox("Lote a registrar", list(lotes_esperando.keys()), key="m5_lote_resultado")
+
+            st.markdown("*Físico-químicos*")
+            c1, c2, c3 = st.columns(3)
+            r_humedad = c1.number_input("Humedad (%)", min_value=0.0, step=0.1, key="m5_r_humedad")
+            r_ce = c2.number_input("Conductividad eléctrica (dS/m)", min_value=0.0, step=0.1, key="m5_r_ce")
+            r_cn = c3.number_input("Relación C/N", min_value=0.0, step=0.1, key="m5_r_cn")
+            c4, c5 = st.columns(2)
+            r_ph = c4.number_input("pH", min_value=0.0, max_value=14.0, step=0.1, key="m5_r_ph")
+            r_mo = c5.number_input("Materia orgánica (%)", min_value=0.0, step=0.1, key="m5_r_mo")
+
+            st.markdown("*Nutrientes*")
+            c6, c7, c8 = st.columns(3)
+            r_n = c6.number_input("Nitrógeno (%)", min_value=0.0, step=0.01, format="%.2f", key="m5_r_n")
+            r_p = c7.number_input("Fósforo (%)", min_value=0.0, step=0.01, format="%.2f", key="m5_r_p")
+            r_k = c8.number_input("Potasio (%)", min_value=0.0, step=0.01, format="%.2f", key="m5_r_k")
+
+            st.markdown("*Metales pesados (mg/kg, base seca)*")
+            c9, c10, c11 = st.columns(3)
+            r_as = c9.number_input("Arsénico", min_value=0.0, step=0.1, key="m5_r_as")
+            r_cd = c10.number_input("Cadmio", min_value=0.0, step=0.1, key="m5_r_cd")
+            r_cr = c11.number_input("Cromo", min_value=0.0, step=0.1, key="m5_r_cr")
+            c12, c13 = st.columns(2)
+            r_hg = c12.number_input("Mercurio", min_value=0.0, step=0.1, key="m5_r_hg")
+            r_ni = c13.number_input("Níquel", min_value=0.0, step=0.1, key="m5_r_ni")
+            r_pb = st.number_input("Plomo", min_value=0.0, step=0.1, key="m5_r_pb")
+
+            st.markdown("*Microbiológicos (base seca)*")
+            c14, c15, c16 = st.columns(3)
+            r_colif = c14.number_input("Coliformes fecales (NMP/g)", min_value=0.0, step=1.0, key="m5_r_colif")
+            r_salm = c15.number_input("Salmonella spp (NMP en 4g)", min_value=0.0, step=1.0, key="m5_r_salm")
+            r_helm = c16.number_input("Huevos de helmintos viables (en 4g)", min_value=0.0, step=1.0, key="m5_r_helm")
+
+            if st.button("Registrar resultados y comparar con la norma", type="primary"):
+                resultados = {
+                    "humedad": r_humedad, "conductividad": r_ce, "relacion_cn": r_cn, "ph": r_ph,
+                    "materia_organica": r_mo, "nitrogeno": r_n, "fosforo": r_p, "potasio": r_k,
+                    "arsenico": r_as, "cadmio": r_cd, "cromo": r_cr, "mercurio": r_hg,
+                    "niquel": r_ni, "plomo": r_pb, "coliformes_fecales": r_colif,
+                    "salmonella": r_salm, "huevos_helmintos": r_helm,
+                }
+                st.session_state["laboratorio"][lote_resultado]["resultados"] = resultados
+                st.session_state["laboratorio"][lote_resultado]["fecha_resultado"] = date.today()
+                st.success(f"Resultados registrados para el lote {lote_resultado}.")
+                st.rerun()
+        else:
+            st.caption("No hay lotes pendientes de resultados.")
+
+        st.subheader("4. Reporte de cumplimiento (NTP 201.207:2020)")
+        lotes_con_resultado = {l: d for l, d in st.session_state["laboratorio"].items() if d["resultados"] is not None}
+        if lotes_con_resultado:
+            lote_reporte = st.selectbox("Ver reporte del lote", list(lotes_con_resultado.keys()), key="m5_lote_reporte")
+            datos_reporte = lotes_con_resultado[lote_reporte]
+
+            filas_reporte = []
+            for clave, limite in LIMITES_NTP.items():
+                valor = datos_reporte["resultados"][clave]
+                cumple = True
+                if limite["min"] is not None and valor < limite["min"]:
+                    cumple = False
+                if limite["max"] is not None and valor > limite["max"]:
+                    cumple = False
+                rango_txt = f"{limite['min'] if limite['min'] is not None else '-'} a {limite['max'] if limite['max'] is not None else '-'}"
+                filas_reporte.append({
+                    "Parámetro": limite["nombre"], "Resultado": valor,
+                    "Rango NTP 201.207:2020": rango_txt, "Estado": "Cumple" if cumple else "No cumple",
+                })
+
+            df_reporte = pd.DataFrame(filas_reporte)
+            st.dataframe(df_reporte, use_container_width=True, hide_index=True)
+
+            n_no_cumple = (df_reporte["Estado"] == "No cumple").sum()
+            if n_no_cumple == 0:
+                st.success(f"El lote {lote_reporte} cumple con todos los parámetros evaluados de la NTP 201.207:2020.")
+            else:
+                st.warning(f"El lote {lote_reporte} tiene {n_no_cumple} parámetro(s) fuera del rango de la NTP 201.207:2020.")
+
+            dias_espera_total = (datos_reporte["fecha_resultado"] - datos_reporte["fecha_envio"]).days
+            st.caption(f"Enviado a laboratorio: {datos_reporte['fecha_envio']} · Resultado recibido: {datos_reporte['fecha_resultado']} ({dias_espera_total} días de espera)")
+
+            csv_reporte = df_reporte.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "Descargar reporte (CSV)", data=csv_reporte,
+                file_name=f"reporte_laboratorio_{lote_reporte}.csv", mime="text/csv",
+            )
+        else:
+            st.caption("Aún no hay resultados de laboratorio registrados.")
