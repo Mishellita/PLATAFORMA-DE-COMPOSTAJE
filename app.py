@@ -49,7 +49,7 @@ def buscar_archivo_logo():
     Busca cualquier archivo que empiece con 'logo' en la raíz del
     repositorio, sin importar mayúsculas/minúsculas ni la extensión
     exacta (png, jpg, jpeg, webp). Así funciona aunque el archivo se
-    haya subido como 'Logo.PNG', 'LOGO.jpg', etc.
+    haya subido como 'Logo.PNG', 'logo.jpg', etc.
     """
     extensiones_validas = (".png", ".jpg", ".jpeg", ".webp")
     try:
