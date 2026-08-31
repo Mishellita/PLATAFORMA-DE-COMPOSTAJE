@@ -3,6 +3,7 @@ Plataforma de Gestión de Compostaje - Planta Minera
 =====================================================
 MÓDULO 1: Formulación de lotes
 MÓDULO 2: Capacidad de material estructurante (aserrín / cartón)
+"""
 
 import streamlit as st
 import pandas as pd
