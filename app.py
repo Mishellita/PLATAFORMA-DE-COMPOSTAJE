@@ -504,6 +504,37 @@ def calcular_mezcla(cantidades_kg: dict):
     return masa_total, humedad_pct, carbono_total, nitrogeno_total, relacion_cn
 
 
+def recalcular_acumulados_lote(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Recalcula masa_acumulada_ton, humedad_acumulada_% y cn_acumulado
+    de un lote completo, en orden de fecha, fila por fila.
+    Debe llamarse siempre que se agregue, edite o elimine un ingreso,
+    porque cada fila depende del acumulado de las filas anteriores.
+    """
+    df = df.sort_values("fecha").reset_index(drop=True)
+
+    masa_acum_kg = 0.0
+    carbono_acum_kg = 0.0
+    nitrogeno_acum_kg = 0.0
+    humedad_ponderada_acum = 0.0
+
+    for i in range(len(df)):
+        masa_kg = df.loc[i, "masa_total_ton"] * 1000
+        carbono_acum_kg += df.loc[i, "carbono_total_kg"]
+        nitrogeno_acum_kg += df.loc[i, "nitrogeno_total_kg"]
+        humedad_ponderada_acum += df.loc[i, "humedad_%"] * masa_kg
+        masa_acum_kg += masa_kg
+
+        humedad_acum_pct = humedad_ponderada_acum / masa_acum_kg if masa_acum_kg else 0
+        cn_acum = carbono_acum_kg / nitrogeno_acum_kg if nitrogeno_acum_kg else 0
+
+        df.loc[i, "masa_acumulada_ton"] = round(masa_acum_kg / 1000, 2)
+        df.loc[i, "humedad_acumulada_%"] = round(humedad_acum_pct, 1)
+        df.loc[i, "cn_acumulado"] = round(cn_acum, 1)
+
+    return df
+
+
 def generar_recomendacion(humedad_pct, relacion_cn, hum_min, hum_max, cn_min, cn_max):
     """Devuelve lista de mensajes (texto, tipo) 'success'/'warning'/'error'."""
     mensajes = []
@@ -709,6 +740,11 @@ with tab_m1:
                 pct = (cantidades_ton[codigo] / total_ton_preview) * 100 if cantidades_ton[codigo] > 0 else 0
                 col.caption(f"{ref['nombre']}: **{pct:.0f}%**")
 
+        fecha_duplicada = (
+            codigo_lote in st.session_state.lotes
+            and (st.session_state.lotes[codigo_lote]["fecha"] == fecha_ingreso).any()
+        )
+
         if st.button("Calcular y registrar ingreso", type="primary"):
             if not operador:
                 st.error("Ingresa el nombre del operador.")
@@ -719,22 +755,16 @@ with tab_m1:
                     "antes de presionar el botón (en el celular, a veces hay que tocar fuera "
                     "del recuadro para que el número quede guardado)."
                 )
+            elif fecha_duplicada:
+                st.error(
+                    f"Ya existe un ingreso registrado para el lote **{codigo_lote}** en la fecha "
+                    f"**{fecha_ingreso.strftime('%d/%m/%Y')}**. Solo se permite un registro por lote "
+                    "y por día. Si te equivocaste en algún dato, ve a la pestaña **Historial de lotes** "
+                    "→ **Corregir o eliminar un ingreso** para editarlo o borrarlo antes de volver a intentar."
+                )
             else:
                 cantidades = {codigo: ton * 1000 for codigo, ton in cantidades_ton.items()}
                 masa, humedad_pct, c_total, n_total, cn = calcular_mezcla(cantidades)
-
-                if codigo_lote in st.session_state.lotes:
-                    hist_previo = st.session_state.lotes[codigo_lote]
-                    carbono_acum = hist_previo["carbono_total_kg"].sum() + c_total
-                    nitrogeno_acum = hist_previo["nitrogeno_total_kg"].sum() + n_total
-                    masa_acum_ton_previa = hist_previo["masa_total_ton"].sum()
-                    masa_acum = (masa_acum_ton_previa * 1000) + masa
-                    humedad_prev_ponderada = (hist_previo["humedad_%"] * hist_previo["masa_total_ton"] * 1000).sum()
-                    humedad_acum_pct = (humedad_prev_ponderada + humedad_pct * masa) / masa_acum if masa_acum else 0
-                    cn_acum = carbono_acum / nitrogeno_acum if nitrogeno_acum else 0
-                else:
-                    carbono_acum, nitrogeno_acum, masa_acum = c_total, n_total, masa
-                    humedad_acum_pct, cn_acum = humedad_pct, cn
 
                 nueva_fila = pd.DataFrame([{
                     "fecha": fecha_ingreso,
@@ -744,19 +774,29 @@ with tab_m1:
                     "masa_total_ton": round(masa / 1000, 2),
                     "humedad_%": round(humedad_pct, 1),
                     "relacion_cn": round(cn, 1) if cn != float("inf") else None,
-                    "masa_acumulada_ton": round(masa_acum / 1000, 2),
-                    "humedad_acumulada_%": round(humedad_acum_pct, 1),
-                    "cn_acumulado": round(cn_acum, 1),
+                    "masa_acumulada_ton": None,       # se completa abajo con recalcular_acumulados_lote
+                    "humedad_acumulada_%": None,
+                    "cn_acumulado": None,
                     "carbono_total_kg": round(c_total, 2),
                     "nitrogeno_total_kg": round(n_total, 2),
                 }])
 
                 if codigo_lote in st.session_state.lotes:
-                    st.session_state.lotes[codigo_lote] = pd.concat(
+                    df_actualizado = pd.concat(
                         [st.session_state.lotes[codigo_lote], nueva_fila], ignore_index=True
                     )
                 else:
-                    st.session_state.lotes[codigo_lote] = nueva_fila
+                    df_actualizado = nueva_fila
+
+                st.session_state.lotes[codigo_lote] = recalcular_acumulados_lote(df_actualizado)
+
+                # Valores acumulados ya recalculados, para mostrarlos abajo
+                fila_actual = st.session_state.lotes[codigo_lote][
+                    st.session_state.lotes[codigo_lote]["fecha"] == fecha_ingreso
+                ].iloc[-1]
+                masa_acum = fila_actual["masa_acumulada_ton"] * 1000
+                humedad_acum_pct = fila_actual["humedad_acumulada_%"]
+                cn_acum = fila_actual["cn_acumulado"]
 
                 st.success(f"Ingreso registrado en el lote {codigo_lote}.")
 
@@ -814,6 +854,99 @@ with tab_m1:
                 "Este historial no se sobrescribe: cada ingreso agrega una fila nueva, "
                 "para mostrar la evolución completa del lote desde el día 1."
             )
+
+            st.divider()
+            with st.expander("Corregir o eliminar un ingreso"):
+                st.caption(
+                    "Selecciona la fecha del ingreso que quieres corregir. Al guardar o eliminar, "
+                    "los acumulados del lote se recalculan automáticamente."
+                )
+                fechas_disponibles = df_lote["fecha"].tolist()
+                fecha_a_editar = st.selectbox(
+                    "Fecha del ingreso",
+                    fechas_disponibles,
+                    format_func=lambda f: f.strftime("%d/%m/%Y") if hasattr(f, "strftime") else str(f),
+                    key="m1_fecha_editar",
+                )
+
+                fila_original = df_lote[df_lote["fecha"] == fecha_a_editar].iloc[0]
+                idx_original = df_lote[df_lote["fecha"] == fecha_a_editar].index[0]
+
+                st.write("Valores actuales de este ingreso:")
+                st.dataframe(
+                    fila_original[["operador"] + [f"{c}_ton" for c in INSUMOS_REF]].to_frame().T,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+                st.write("Nuevos valores (déjalos igual si solo vas a eliminar):")
+                col_op_e, col_resto_e = st.columns([1, 2])
+                with col_op_e:
+                    operador_edit = st.text_input(
+                        "Operador", value=str(fila_original["operador"]), key="m1_editar_operador"
+                    )
+
+                cols_edit = st.columns(len(INSUMOS_REF))
+                cantidades_edit_ton = {}
+                for col, (codigo, ref) in zip(cols_edit, INSUMOS_REF.items()):
+                    with col:
+                        cantidades_edit_ton[codigo] = st.number_input(
+                            f"{ref['nombre']} ({codigo})",
+                            min_value=0.0,
+                            step=0.1,
+                            format="%.2f",
+                            value=float(fila_original[f"{codigo}_ton"]),
+                            key=f"m1_editar_{codigo}",
+                        )
+
+                col_guardar, col_eliminar = st.columns(2)
+
+                with col_guardar:
+                    if st.button("Guardar cambios", type="primary", key="m1_btn_guardar_edicion"):
+                        total_edit = sum(cantidades_edit_ton.values())
+                        if not operador_edit:
+                            st.error("Ingresa el nombre del operador.")
+                        elif total_edit == 0:
+                            st.error("Ingresa al menos una cantidad mayor a 0.")
+                        else:
+                            cantidades_kg_edit = {c: t * 1000 for c, t in cantidades_edit_ton.items()}
+                            masa_e, humedad_e, c_e, n_e, cn_e = calcular_mezcla(cantidades_kg_edit)
+
+                            df_lote.loc[idx_original, "operador"] = operador_edit
+                            for c in INSUMOS_REF:
+                                df_lote.loc[idx_original, f"{c}_ton"] = round(cantidades_edit_ton[c], 2)
+                                df_lote.loc[idx_original, f"{c}_%mezcla"] = (
+                                    round((cantidades_edit_ton[c] / total_edit) * 100, 1) if total_edit else 0
+                                )
+                            df_lote.loc[idx_original, "masa_total_ton"] = round(masa_e / 1000, 2)
+                            df_lote.loc[idx_original, "humedad_%"] = round(humedad_e, 1)
+                            df_lote.loc[idx_original, "relacion_cn"] = round(cn_e, 1) if cn_e != float("inf") else None
+                            df_lote.loc[idx_original, "carbono_total_kg"] = round(c_e, 2)
+                            df_lote.loc[idx_original, "nitrogeno_total_kg"] = round(n_e, 2)
+
+                            st.session_state.lotes[lote_seleccionado] = recalcular_acumulados_lote(df_lote)
+                            st.success(
+                                f"Ingreso del {fecha_a_editar.strftime('%d/%m/%Y')} actualizado. "
+                                "Los acumulados del lote se recalcularon."
+                            )
+                            st.rerun()
+
+                with col_eliminar:
+                    if st.button("Eliminar este ingreso", key="m1_btn_eliminar_ingreso"):
+                        df_restante = df_lote.drop(index=idx_original).reset_index(drop=True)
+                        if df_restante.empty:
+                            del st.session_state.lotes[lote_seleccionado]
+                            st.success(
+                                f"Se eliminó el único ingreso del lote {lote_seleccionado}. "
+                                "El lote ya no aparece en la lista."
+                            )
+                        else:
+                            st.session_state.lotes[lote_seleccionado] = recalcular_acumulados_lote(df_restante)
+                            st.success(
+                                f"Ingreso del {fecha_a_editar.strftime('%d/%m/%Y')} eliminado. "
+                                "Los acumulados del lote se recalcularon."
+                            )
+                        st.rerun()
 
 # =================================================================
 # MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
