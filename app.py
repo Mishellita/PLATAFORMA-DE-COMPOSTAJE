@@ -740,6 +740,15 @@ with tab_m1:
                 pct = (cantidades_ton[codigo] / total_ton_preview) * 100 if cantidades_ton[codigo] > 0 else 0
                 col.caption(f"{ref['nombre']}: **{pct:.0f}%**")
 
+        st.subheader("Microorganismos benéficos (aditivo)")
+        st.caption(
+            "Inoculante microbiano aplicado a esta mezcla. Se registra para trazabilidad y costo, "
+            "pero no entra en el cálculo de humedad ni de la relación C/N."
+        )
+        microorganismos_L = st.number_input(
+            "Cantidad aplicada (litros)", min_value=0.0, step=0.1, format="%.2f", key="nuevo_microorganismos_L"
+        )
+
         fecha_duplicada = (
             codigo_lote in st.session_state.lotes
             and (st.session_state.lotes[codigo_lote]["fecha"] == fecha_ingreso).any()
@@ -771,6 +780,7 @@ with tab_m1:
                     "operador": operador,
                     **{f"{c}_ton": round(cantidades_ton[c], 2) for c in INSUMOS_REF},
                     **{f"{c}_%mezcla": round((cantidades_ton[c] / total_ton_preview) * 100, 1) if total_ton_preview else 0 for c in INSUMOS_REF},
+                    "microorganismos_L": round(microorganismos_L, 2),
                     "masa_total_ton": round(masa / 1000, 2),
                     "humedad_%": round(humedad_pct, 1),
                     "relacion_cn": round(cn, 1) if cn != float("inf") else None,
@@ -787,6 +797,11 @@ with tab_m1:
                     )
                 else:
                     df_actualizado = nueva_fila
+
+                # Lotes creados antes de agregar este campo no tienen la columna: se rellenan en 0.
+                if "microorganismos_L" not in df_actualizado.columns:
+                    df_actualizado["microorganismos_L"] = 0.0
+                df_actualizado["microorganismos_L"] = df_actualizado["microorganismos_L"].fillna(0.0)
 
                 st.session_state.lotes[codigo_lote] = recalcular_acumulados_lote(df_actualizado)
 
@@ -873,8 +888,11 @@ with tab_m1:
                 idx_original = df_lote[df_lote["fecha"] == fecha_a_editar].index[0]
 
                 st.write("Valores actuales de este ingreso:")
+                columnas_vista = ["operador"] + [f"{c}_ton" for c in INSUMOS_REF]
+                if "microorganismos_L" in fila_original.index:
+                    columnas_vista.append("microorganismos_L")
                 st.dataframe(
-                    fila_original[["operador"] + [f"{c}_ton" for c in INSUMOS_REF]].to_frame().T,
+                    fila_original[columnas_vista].to_frame().T,
                     use_container_width=True,
                     hide_index=True,
                 )
@@ -899,6 +917,15 @@ with tab_m1:
                             key=f"m1_editar_{codigo}",
                         )
 
+                microorganismos_edit_L = st.number_input(
+                    "Microorganismos benéficos aplicados (litros)",
+                    min_value=0.0,
+                    step=0.1,
+                    format="%.2f",
+                    value=float(fila_original.get("microorganismos_L", 0.0) or 0.0),
+                    key="m1_editar_microorganismos_L",
+                )
+
                 col_guardar, col_eliminar = st.columns(2)
 
                 with col_guardar:
@@ -918,6 +945,7 @@ with tab_m1:
                                 df_lote.loc[idx_original, f"{c}_%mezcla"] = (
                                     round((cantidades_edit_ton[c] / total_edit) * 100, 1) if total_edit else 0
                                 )
+                            df_lote.loc[idx_original, "microorganismos_L"] = round(microorganismos_edit_L, 2)
                             df_lote.loc[idx_original, "masa_total_ton"] = round(masa_e / 1000, 2)
                             df_lote.loc[idx_original, "humedad_%"] = round(humedad_e, 1)
                             df_lote.loc[idx_original, "relacion_cn"] = round(cn_e, 1) if cn_e != float("inf") else None
