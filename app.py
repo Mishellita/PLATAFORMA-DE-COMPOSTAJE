@@ -466,7 +466,7 @@ LIMITES_NTP = {
 if "zarandeo" not in st.session_state:
     st.session_state["zarandeo"] = {}
 # Lista de operadores para el selector.
-OPERADORES = ["Adrián Carpio", "Fernando Valdivia", "Michelle Rubiz", "Otro"]
+OPERADORES = ["Adrián Carpio", "Fernando Valdivia", "Mishel Ruiz", "Otro"]
 
 # Prefijo para los códigos de lote autogenerados, ej: CMP-2026-001
 PREFIJO_LOTE = "CMP"
