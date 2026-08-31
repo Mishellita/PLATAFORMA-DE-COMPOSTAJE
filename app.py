@@ -675,8 +675,8 @@ if st.session_state.lotes:
 tab_m1, tab_m2, tab_m3, tab_m4, tab_m5 = st.tabs([
     "Módulo 1 — Formulación de Lotes",
     "Módulo 2 — Capacidad de Estructurante",
-    "Módulo 3 — Seguimiento de Pilas",
-    "Módulo 4 — Stock de Compost",
+    "Módulo 3 — Seguimiento de Lotes",
+    "Módulo 4 — Control de Lotes",
     "Módulo 5 — Análisis de laboratorio",
 ])
 # =================================================================
