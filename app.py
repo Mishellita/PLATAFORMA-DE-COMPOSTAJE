@@ -4,18 +4,6 @@ Plataforma de Gestión de Compostaje - Planta Minera
 MÓDULO 1: Formulación de lotes
 MÓDULO 2: Capacidad de material estructurante (aserrín / cartón)
 
-Cómo funciona este archivo (guía rápida para quien no programa):
-- Streamlit lee este archivo de arriba a abajo cada vez que alguien
-  interactúa con la app (por ejemplo, al apretar un botón).
-- "st.session_state" es la "memoria" de la app mientras está abierta:
-  ahí guardamos los lotes y su historial para que no se borren
-  cada vez que se actualiza la pantalla. OJO: esto se pierde si la
-  app se reinicia o "duerme" (ver aviso en el pie de página) — eso
-  se resuelve más adelante conectando a una hoja de cálculo en línea.
-- Los datos de insumos (humedad, carbono, nitrógeno) están en el
-  diccionario INSUMOS_REF más abajo.
-"""
-
 import streamlit as st
 import pandas as pd
 import os
