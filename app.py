@@ -1546,7 +1546,7 @@ with tab_m4:
                     st.session_state["zarandeo"][lote_culminar] = {
                         "estado": "en_zarandeo", "fecha_inicio": date.today(),
                         "cantidad_inicial_ton": cantidad_inicial,
-                        "fecha_fin": None, "cantidad_final_ton": None, "ficha_pesaje": None,
+                        "fecha_fin": None, "cantidad_final_ton": None, "ticket_pesaje": None,
                     }
                     st.rerun()
 
@@ -1562,17 +1562,17 @@ with tab_m4:
                 with col_zf1:
                     cantidad_final = st.number_input(f"Cantidad tamizada final (t) — {lote_z}", min_value=0.0, step=0.05, format="%.2f", key=f"m4_cant_final_{lote_z}")
                 with col_zf2:
-                    ficha_zarandeo = st.text_input(f"N° ficha de pesaje — {lote_z}", key=f"m4_ficha_z_{lote_z}")
+                    ticket_zarandeo = st.text_input(f"N° ticket de pesaje — {lote_z}", key=f"m4_ticket_z_{lote_z}")
                 with col_zf3:
                     st.write("")
                     if st.button(f"Registrar zarandeo terminado", key=f"m4_btn_fin_{lote_z}"):
-                        if cantidad_final == 0 or not ficha_zarandeo:
-                            st.error("Completa la cantidad final y el N° de ficha de pesaje.")
+                        if cantidad_final == 0 or not ticket_zarandeo:
+                            st.error("Completa la cantidad final y el N° de ticket de pesaje.")
                         else:
                             datos_z["estado"] = "terminado"
                             datos_z["fecha_fin"] = date.today()
                             datos_z["cantidad_final_ton"] = cantidad_final
-                            datos_z["ficha_pesaje"] = ficha_zarandeo
+                            datos_z["ticket_pesaje"] = ticket_zarandeo
                             st.success(f"Zarandeo del lote {lote_z} registrado: {cantidad_final:.2f} t ({cantidad_final*1000:.0f} kg).")
                             st.rerun()
 
@@ -1582,7 +1582,7 @@ with tab_m4:
                 df_zarandeo_terminado = pd.DataFrame([
                     {"Lote": l, "Cantidad inicial (t)": d["cantidad_inicial_ton"], "Cantidad final (t)": d["cantidad_final_ton"],
                      "Cantidad final (kg)": d["cantidad_final_ton"] * 1000, "Días de zarandeo": (d["fecha_fin"] - d["fecha_inicio"]).days,
-                     "Ficha de pesaje": d["ficha_pesaje"]}
+                     "ticket de pesaje": d["ticket_pesaje"]}
                     for l, d in lotes_terminados_z.items()
                 ])
                 st.dataframe(df_zarandeo_terminado, use_container_width=True, hide_index=True)
@@ -1601,14 +1601,14 @@ with tab_m4:
         with col_s4:
             cantidad_salida_ton = st.number_input("Cantidad que sale (t)", min_value=0.0, step=0.1, format="%.2f", key="m4_cantidad_salida")
         with col_s5:
-            ficha_pesaje = st.text_input("N° de ficha de pesaje", key="m4_ficha_pesaje")
+            ticket_pesaje = st.text_input("N° de ticket de pesaje", key="m4_ticket_pesaje")
 
         if st.button("Registrar salida de compost", type="primary"):
             campos_faltantes_salida = []
             if cantidad_salida_ton == 0:
                 campos_faltantes_salida.append("cantidad que sale")
-            if not ficha_pesaje:
-                campos_faltantes_salida.append("N° de ficha de pesaje")
+            if not ticket_pesaje:
+                campos_faltantes_salida.append("N° de ticket de pesaje")
 
             if campos_faltantes_salida:
                 st.error(f"Faltan datos por completar: {', '.join(campos_faltantes_salida)}.")
@@ -1616,7 +1616,7 @@ with tab_m4:
 
             nueva_salida = pd.DataFrame([{
                 "fecha": fecha_salida, "destino": destino_salida,
-                "cantidad_ton": cantidad_salida_ton, "ficha_pesaje": ficha_pesaje,
+                "cantidad_ton": cantidad_salida_ton, "ticket_pesaje": ticket_pesaje,
             }])
             if lote_salida in st.session_state["salidas_compost"]:
                 st.session_state["salidas_compost"][lote_salida] = pd.concat(
