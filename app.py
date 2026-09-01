@@ -4,7 +4,7 @@ Plataforma de Gestión de Compostaje - Planta Minera
 MÓDULO 1: Formulación de lotes
 MÓDULO 2: Capacidad de material estructurante (aserrín / cartón)
 """
-
+import math 
 import streamlit as st
 import pandas as pd
 import os
@@ -674,10 +674,11 @@ if st.session_state.lotes:
 
 tab_m1, tab_m2, tab_m3, tab_m4, tab_m5 = st.tabs([
     "Módulo 1 — Formulación de Lotes",
-    "Módulo 2 — Capacidad de Estructurante",
-    "Módulo 3 — Seguimiento de Lotes",
-    "Módulo 4 — Control de Lotes",
-    "Módulo 5 — Análisis de laboratorio",
+    "Módulo 2 — Dimensionamiento de pilas",
+    "Módulo 3 — Capacidad de Estructurante",
+    "Módulo 4 — Seguimiento de Lotes",
+    "Módulo 5 — Control de Lotes",
+    "Módulo 6 — Análisis de laboratorio",
 ])
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
@@ -975,12 +976,111 @@ with tab_m1:
                                 "Los acumulados del lote se recalcularon."
                             )
                         st.rerun()
+# =========================================================
+# MÓDULO 2: DIMENSIONAMIENTO DE INFRAESTRUCTURA
+# Pega este bloque como una nueva página/sección de tu app
+# =========================================================
+
+st.header("Módulo 2: Dimensionamiento de infraestructura")
+
+# --- Densidades de referencia (kg/m3) — tabla de insumos ---
+DENSIDADES = {
+    "RO": 650,    # Residuos orgánicos
+    "LD": 900,    # Lodo deshidratado de PTAR
+    "AS": 250,    # Aserrín
+    "CA": 100,    # Cartón
+    "ROD": 550,   # Residuos orgánicos deshidratados
+}
+
+st.subheader("1. Parámetros de la pila (editables)")
+st.caption(
+    "Valores por defecto según lo confirmado con operadores/PETS. "
+    "El talud (ángulo del lado de la pila) aún no está confirmado con la "
+    "contratista — se dejó un valor de referencia que sí es compatible con "
+    "la base y altura indicadas."
+)
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    base = st.number_input(
+        "Ancho de base de la pila (m)", value=4.0, min_value=0.1, step=0.1
+    )
+with col2:
+    altura = st.number_input(
+        "Altura de la pila (m)", value=2.5, min_value=0.1, step=0.1
+    )
+with col3:
+    talud_grados = st.number_input(
+        "Ángulo de talud (°)",
+        value=60.0, min_value=1.0, max_value=89.0, step=1.0,
+        help=(
+            "Ángulo del lado de la pila respecto a la horizontal. "
+            "45° = pendiente 1:1. A confirmar con la contratista."
+        ),
+    )
+
+distancia_entre_pilas = st.number_input(
+    "Distancia entre pilas (m)", value=2.0, min_value=0.0, step=0.1
+)
+
+# --- Geometría: validar que el talud sea compatible con base y altura ---
+talud_rad = math.radians(talud_grados)
+desplazamiento = altura / math.tan(talud_rad)  # avance horizontal por la altura dada
+base_menor = base - 2 * desplazamiento
+
+if base_menor <= 0:
+    talud_minimo = math.degrees(math.atan(altura / (base / 2)))
+    st.error(
+        f"Con un talud de {talud_grados:.0f}°, una base de {base:.1f} m no "
+        f"alcanza a soportar {altura:.1f} m de altura (el trapecio se cierra "
+        f"antes). Con esta base y altura, el talud debe ser de al menos "
+        f"{talud_minimo:.1f}°. Ajusta el talud o confirma los valores con la "
+        f"contratista."
+    )
+    st.stop()
+
+area_transversal = (base + base_menor) / 2 * altura
+
+# --- Masas del lote (kg) — vienen del Módulo 1 de formulación ---
+st.subheader("2. Masas del lote (kg)")
+st.caption("Normalmente estos valores vendrían ya calculados del Módulo 1.")
+
+c1, c2, c3, c4, c5 = st.columns(5)
+masa_ro = c1.number_input("RO", value=0.0, min_value=0.0, key="masa_ro")
+masa_ld = c2.number_input("LD", value=0.0, min_value=0.0, key="masa_ld")
+masa_as = c3.number_input("AS", value=0.0, min_value=0.0, key="masa_as")
+masa_ca = c4.number_input("CA", value=0.0, min_value=0.0, key="masa_ca")
+masa_rod = c5.number_input("ROD", value=0.0, min_value=0.0, key="masa_rod")
+
+masas = {"RO": masa_ro, "LD": masa_ld, "AS": masa_as, "CA": masa_ca, "ROD": masa_rod}
+volumen_total = sum(masas[i] / DENSIDADES[i] for i in masas if masas[i] > 0)
+
+st.metric("Volumen total del lote (m³)", f"{volumen_total:.2f}")
+
+# --- Resultado del dimensionamiento ---
+if volumen_total > 0:
+    largo_pila = volumen_total / area_transversal
+    area_pila = base * largo_pila
+    area_total_reservada = area_pila + (distancia_entre_pilas * base)
+
+    st.subheader("3. Resultado")
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Largo de pila necesario (m)", f"{largo_pila:.2f}")
+    r2.metric("Área de la pila (m²)", f"{area_pila:.2f}")
+    r3.metric("Área total reservada (m²)", f"{area_total_reservada:.2f}")
+
+    st.caption(
+        "Área total reservada = área de la pila + franja de distancia de "
+        "seguridad hacia la siguiente pila."
+    )
+else:
+    st.info("Ingresa las masas del lote para calcular el dimensionamiento.")
 
 # =================================================================
-# MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
+# MÓDULO 3 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
 # =================================================================
 with tab_m2:
-    encabezado("Módulo 2 — Capacidad de Material Estructurante")
+    encabezado("Módulo 3 — Capacidad de Material Estructurante")
 
     with st.expander("¿Qué hace este módulo? (léelo antes de calcular)"):
         st.write(
@@ -1308,10 +1408,10 @@ referenciales de literatura y debe recalibrarse cuando exista caracterización r
         st.caption("Aún no hay consultas registradas en esta sesión.")
 
 # =================================================================
-# MÓDULO 3 — SEGUIMIENTO DE PILAS
+# MÓDULO 4 — SEGUIMIENTO DE PILAS
 # =================================================================
 with tab_m3:
-    encabezado("Módulo 3 — Seguimiento de Pilas")
+    encabezado("Módulo 4 — Seguimiento de Pilas")
     st.caption(
         "Registra la temperatura, pH y humedad de cada lote a lo largo del tiempo, y recibe recomendaciones "
         "automáticas según la fase del proceso en la que se encuentra."
@@ -1519,10 +1619,10 @@ with tab_m3:
             st.info("Aún no hay registros de seguimiento para este lote.")
 
 # =================================================================
-# MÓDULO 4 — STOCK DE COMPOST
+# MÓDULO 5 — STOCK DE COMPOST
 # =================================================================
 with tab_m4:
-    encabezado("Módulo 4 — Stock de Compost")
+    encabezado("Módulo 5 — Stock de Compost")
     st.caption(
         "Registra los ingresos y salidas de compost terminado por lote (donación, vegetación u otro destino), "
         "y consulta cuánto stock disponible queda en cada uno."
@@ -1674,10 +1774,10 @@ with tab_m4:
             else:
                 st.caption("Aún no hay salidas registradas.")
 # =================================================================
-# MÓDULO 5 — ANÁLISIS DE LABORATORIO
+# MÓDULO 6 — ANÁLISIS DE LABORATORIO
 # =================================================================
 with tab_m5:
-    encabezado("Módulo 5 — Análisis de Laboratorio")
+    encabezado("Módulo 6 — Análisis de Laboratorio")
     st.caption(
         "Registra el envío de muestras a laboratorio, el conteo de días de espera, y compara "
         "los resultados contra la NTP 201.207:2020 (referencia peruana disponible para compost)."
