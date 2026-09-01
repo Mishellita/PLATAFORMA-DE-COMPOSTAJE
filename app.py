@@ -976,11 +976,11 @@ with tab_m1:
                             )
                         st.rerun()
 # =========================================================
-# MÓDULO 2: DIMENSIONAMIENTO DE INFRAESTRUCTURA
+# MÓDULO 1: DIMENSIONAMIENTO DE INFRAESTRUCTURA
 # Pega este bloque como una nueva página/sección de tu app
 # =========================================================
 
-st.header("Módulo 2: Dimensionamiento de infraestructura")
+st.header("Módulo 1: Dimensionamiento de infraestructura")
 
 # --- Densidades de referencia (kg/m3) — tabla de insumos ---
 DENSIDADES = {
@@ -1076,10 +1076,10 @@ else:
     st.info("Ingresa las masas del lote para calcular el dimensionamiento.")
 
 # =================================================================
-# MÓDULO 3 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
+# MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
 # =================================================================
 with tab_m2:
-    encabezado("Módulo 3 — Capacidad de Material Estructurante")
+    encabezado("Módulo 2 — Capacidad de Material Estructurante")
 
     with st.expander("¿Qué hace este módulo? (léelo antes de calcular)"):
         st.write(
@@ -1407,10 +1407,10 @@ referenciales de literatura y debe recalibrarse cuando exista caracterización r
         st.caption("Aún no hay consultas registradas en esta sesión.")
 
 # =================================================================
-# MÓDULO 4 — SEGUIMIENTO DE PILAS
+# MÓDULO 3 — SEGUIMIENTO DE PILAS
 # =================================================================
 with tab_m3:
-    encabezado("Módulo 4 — Seguimiento de Pilas")
+    encabezado("Módulo 3 — Seguimiento de Pilas")
     st.caption(
         "Registra la temperatura, pH y humedad de cada lote a lo largo del tiempo, y recibe recomendaciones "
         "automáticas según la fase del proceso en la que se encuentra."
@@ -1618,10 +1618,10 @@ with tab_m3:
             st.info("Aún no hay registros de seguimiento para este lote.")
 
 # =================================================================
-# MÓDULO 5 — STOCK DE COMPOST
+# MÓDULO 4 — STOCK DE COMPOST
 # =================================================================
 with tab_m4:
-    encabezado("Módulo 5 — Stock de Compost")
+    encabezado("Módulo 4 — Stock de Compost")
     st.caption(
         "Registra los ingresos y salidas de compost terminado por lote (donación, vegetación u otro destino), "
         "y consulta cuánto stock disponible queda en cada uno."
@@ -1773,10 +1773,10 @@ with tab_m4:
             else:
                 st.caption("Aún no hay salidas registradas.")
 # =================================================================
-# MÓDULO 6 — ANÁLISIS DE LABORATORIO
+# MÓDULO 5 — ANÁLISIS DE LABORATORIO
 # =================================================================
 with tab_m5:
-    encabezado("Módulo 6 — Análisis de Laboratorio")
+    encabezado("Módulo 5 — Análisis de Laboratorio")
     st.caption(
         "Registra el envío de muestras a laboratorio, el conteo de días de espera, y compara "
         "los resultados contra la NTP 201.207:2020 (referencia peruana disponible para compost)."
