@@ -976,11 +976,38 @@ with tab_m1:
                             )
                         st.rerun()
 # =========================================================
-# MÓDULO 1: DIMENSIONAMIENTO DE INFRAESTRUCTURA
+# DIMENSIONAMIENTO DE INFRAESTRUCTURA
 # Pega este bloque como una nueva página/sección de tu app
 # =========================================================
 
-st.header("Módulo 1: Dimensionamiento de infraestructura")
+st.header("Módulo 1.1: Dimensionamiento de pilas")
+
+with st.expander("¿Para qué sirve este módulo? (clic para ver la explicación)"):
+    st.markdown(
+        """
+        **Objetivo:** saber cuánta área del patio (m²) se necesita reservar
+        para formar una pila de compost, **antes** de empezar a armarla —
+        para poder solicitar el espacio y las cantidades de insumos con
+        anticipación.
+
+        **Idea clave:** la altura y el ancho de base de la pila son un
+        *molde fijo* (definido por el alcance del minicargador y el
+        criterio operativo, no cambian con el tiempo). Lo único que crece
+        conforme se agrega material es el **largo** de la pila.
+
+        Por eso, el cálculo va en este orden:
+        1. Tú decides cuánto material total (kg) va a entrar en la pila —
+           por ejemplo, con el promedio real de ingreso diario.
+        2. Ese total se convierte a volumen (m³) usando la densidad de
+           cada insumo.
+        3. Con el volumen y el molde fijo (altura, base, talud) se calcula
+           el **largo necesario** de la pila.
+        4. Con el largo se obtiene el **área de la pila** — el dato que
+           más te interesa para solicitar el espacio.
+        5. Sumando la franja de distancia de seguridad hacia la pila
+           vecina, se obtiene el **área total a reservar**.
+        """
+    )
 
 # --- Densidades de referencia (kg/m3) — tabla de insumos ---
 DENSIDADES = {
@@ -992,6 +1019,7 @@ DENSIDADES = {
 }
 
 st.subheader("1. Parámetros de la pila (editables)")
+st.caption("Este es el molde fijo: se mantiene constante mientras se arma la pila.")
 st.caption(
     "Valores por defecto según lo confirmado con operadores/PETS. "
     "El talud (ángulo del lado de la pila) aún no está confirmado con la "
@@ -1041,8 +1069,12 @@ if base_menor <= 0:
 area_transversal = (base + base_menor) / 2 * altura
 
 # --- Masas del lote (kg) — vienen del Módulo 1 de formulación ---
-st.subheader("2. Masas del lote (kg)")
-st.caption("Normalmente estos valores vendrían ya calculados del Módulo 1.")
+st.subheader("2. Masa total planificada para esta pila (kg)")
+st.caption(
+    "Este es el total que decides que va a entrar en la pila — por ejemplo, "
+    "el promedio real de ingreso diario multiplicado por los días que "
+    "planeas acumular. Normalmente vendría del Módulo 1 de formulación."
+)
 
 c1, c2, c3, c4, c5 = st.columns(5)
 masa_ro = c1.number_input("RO", value=0.0, min_value=0.0, key="masa_ro")
@@ -1052,9 +1084,12 @@ masa_ca = c4.number_input("CA", value=0.0, min_value=0.0, key="masa_ca")
 masa_rod = c5.number_input("ROD", value=0.0, min_value=0.0, key="masa_rod")
 
 masas = {"RO": masa_ro, "LD": masa_ld, "AS": masa_as, "CA": masa_ca, "ROD": masa_rod}
+masa_total = sum(masas.values())
 volumen_total = sum(masas[i] / DENSIDADES[i] for i in masas if masas[i] > 0)
 
-st.metric("Volumen total del lote (m³)", f"{volumen_total:.2f}")
+m1, m2 = st.columns(2)
+m1.metric("Masa total del lote (kg)", f"{masa_total:,.0f}")
+m2.metric("Volumen total del lote (m³)", f"{volumen_total:.2f}")
 
 # --- Resultado del dimensionamiento ---
 if volumen_total > 0:
@@ -1066,11 +1101,14 @@ if volumen_total > 0:
     r1, r2, r3 = st.columns(3)
     r1.metric("Largo de pila necesario (m)", f"{largo_pila:.2f}")
     r2.metric("Área de la pila (m²)", f"{area_pila:.2f}")
-    r3.metric("Área total reservada (m²)", f"{area_total_reservada:.2f}")
+    r3.metric("Área total a reservar (m²)", f"{area_total_reservada:.2f}")
 
     st.caption(
-        "Área total reservada = área de la pila + franja de distancia de "
-        "seguridad hacia la siguiente pila."
+        f"Área total a reservar = área de la pila ({area_pila:.2f} m²) + "
+        f"franja de distancia de seguridad hacia la siguiente pila "
+        f"({distancia_entre_pilas:.1f} m × {base:.1f} m = "
+        f"{distancia_entre_pilas * base:.2f} m²). Este es el espacio que "
+        f"debes solicitar para poder formar la siguiente pila al lado."
     )
 else:
     st.info("Ingresa las masas del lote para calcular el dimensionamiento.")
