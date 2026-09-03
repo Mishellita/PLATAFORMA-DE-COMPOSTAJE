@@ -689,7 +689,11 @@ with tab_m1:
         "carbono/nitrógeno, con historial acumulado día a día."
     )
 
-    tab_nuevo, tab_historial = st.tabs(["Nuevo ingreso a un lote", "Historial de lotes"])
+    tab_nuevo, tab_historial, tab_dimensionamiento = st.tabs([
+        "Nuevo ingreso a un lote",
+        "Historial de lotes",
+        "Dimensionamiento de pilas",
+    ])
 
     # ---- PESTAÑA: NUEVO INGRESO ---------------------------------------
     with tab_nuevo:
@@ -975,143 +979,147 @@ with tab_m1:
                                 "Los acumulados del lote se recalcularon."
                             )
                         st.rerun()
-# =========================================================
-# DIMENSIONAMIENTO DE INFRAESTRUCTURA
-# Pega este bloque como una nueva página/sección de tu app
-# =========================================================
+    # =========================================================
+    # MÓDULO 1.1 — DIMENSIONAMIENTO DE PILAS
+    # Visible únicamente dentro del Módulo 1
+    # =========================================================
+    with tab_dimensionamiento:
+        # =========================================================
+        # DIMENSIONAMIENTO DE INFRAESTRUCTURA
+        # =========================================================
 
-st.header("Módulo 1.1: Dimensionamiento de pilas")
+        st.subheader("Módulo 1.1 — Dimensionamiento de pilas")
 
-with st.expander("¿Para qué sirve este módulo? (clic para ver la explicación)"):
-    st.markdown(
-        """
-        **Objetivo:** saber cuánta área del patio (m²) se necesita reservar
-        para formar una pila de compost, **antes** de empezar a armarla —
-        para poder solicitar el espacio y las cantidades de insumos con
-        anticipación.
+        with st.expander("¿Para qué sirve este módulo? (clic para ver la explicación)"):
+            st.markdown(
+                """
+                **Objetivo:** saber cuánta área del patio (m²) se necesita reservar
+                para formar una pila de compost, **antes** de empezar a armarla —
+                para poder solicitar el espacio y las cantidades de insumos con
+                anticipación.
 
-        **Idea clave:** la altura y el ancho de base de la pila son un
-        *molde fijo* (definido por el alcance del minicargador y el
-        criterio operativo, no cambian con el tiempo). Lo único que crece
-        conforme se agrega material es el **largo** de la pila.
+                **Idea clave:** la altura y el ancho de base de la pila son un
+                *molde fijo* (definido por el alcance del minicargador y el
+                criterio operativo, no cambian con el tiempo). Lo único que crece
+                conforme se agrega material es el **largo** de la pila.
 
-        Por eso, el cálculo va en este orden:
-        1. Tú decides cuánto material total (kg) va a entrar en la pila —
-           por ejemplo, con el promedio real de ingreso diario.
-        2. Ese total se convierte a volumen (m³) usando la densidad de
-           cada insumo.
-        3. Con el volumen y el molde fijo (altura, base, talud) se calcula
-           el **largo necesario** de la pila.
-        4. Con el largo se obtiene el **área de la pila** — el dato que
-           más te interesa para solicitar el espacio.
-        5. Sumando la franja de distancia de seguridad hacia la pila
-           vecina, se obtiene el **área total a reservar**.
-        """
-    )
+                Por eso, el cálculo va en este orden:
+                1. Tú decides cuánto material total (kg) va a entrar en la pila —
+                   por ejemplo, con el promedio real de ingreso diario.
+                2. Ese total se convierte a volumen (m³) usando la densidad de
+                   cada insumo.
+                3. Con el volumen y el molde fijo (altura, base, talud) se calcula
+                   el **largo necesario** de la pila.
+                4. Con el largo se obtiene el **área de la pila** — el dato que
+                   más te interesa para solicitar el espacio.
+                5. Sumando la franja de distancia de seguridad hacia la pila
+                   vecina, se obtiene el **área total a reservar**.
+                """
+            )
 
-# --- Densidades de referencia (kg/m3) — tabla de insumos ---
-DENSIDADES = {
-    "RO": 650,    # Residuos orgánicos
-    "LD": 900,    # Lodo deshidratado de PTAR
-    "AS": 250,    # Aserrín
-    "CA": 100,    # Cartón
-    "ROD": 550,   # Residuos orgánicos deshidratados
-}
+        # --- Densidades de referencia (kg/m3) — tabla de insumos ---
+        DENSIDADES = {
+            "RO": 650,    # Residuos orgánicos
+            "LD": 900,    # Lodo deshidratado de PTAR
+            "AS": 250,    # Aserrín
+            "CA": 100,    # Cartón
+            "ROD": 550,   # Residuos orgánicos deshidratados
+        }
 
-st.subheader("1. Parámetros de la pila (editables)")
-st.caption("Este es el molde fijo: se mantiene constante mientras se arma la pila.")
-st.caption(
-    "Valores por defecto según lo confirmado con operadores/PETS. "
-    "El talud (ángulo del lado de la pila) aún no está confirmado con la "
-    "contratista — se dejó un valor de referencia que sí es compatible con "
-    "la base y altura indicadas."
-)
+        st.subheader("1. Parámetros de la pila (editables)")
+        st.caption("Este es el molde fijo: se mantiene constante mientras se arma la pila.")
+        st.caption(
+            "Valores por defecto según lo confirmado con operadores/PETS. "
+            "El talud (ángulo del lado de la pila) aún no está confirmado con la "
+            "contratista — se dejó un valor de referencia que sí es compatible con "
+            "la base y altura indicadas."
+        )
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    base = st.number_input(
-        "Ancho de base de la pila (m)", value=4.0, min_value=0.1, step=0.1
-    )
-with col2:
-    altura = st.number_input(
-        "Altura de la pila (m)", value=2.5, min_value=0.1, step=0.1
-    )
-with col3:
-    talud_grados = st.number_input(
-        "Ángulo de talud (°)",
-        value=60.0, min_value=1.0, max_value=89.0, step=1.0,
-        help=(
-            "Ángulo del lado de la pila respecto a la horizontal. "
-            "45° = pendiente 1:1. A confirmar con la contratista."
-        ),
-    )
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            base = st.number_input(
+                "Ancho de base de la pila (m)", value=4.0, min_value=0.1, step=0.1
+            )
+        with col2:
+            altura = st.number_input(
+                "Altura de la pila (m)", value=2.5, min_value=0.1, step=0.1
+            )
+        with col3:
+            talud_grados = st.number_input(
+                "Ángulo de talud (°)",
+                value=60.0, min_value=1.0, max_value=89.0, step=1.0,
+                help=(
+                    "Ángulo del lado de la pila respecto a la horizontal. "
+                    "45° = pendiente 1:1. A confirmar con la contratista."
+                ),
+            )
 
-distancia_entre_pilas = st.number_input(
-    "Distancia entre pilas (m)", value=2.0, min_value=0.0, step=0.1
-)
+        distancia_entre_pilas = st.number_input(
+            "Distancia entre pilas (m)", value=2.0, min_value=0.0, step=0.1
+        )
 
-# --- Geometría: validar que el talud sea compatible con base y altura ---
-talud_rad = math.radians(talud_grados)
-desplazamiento = altura / math.tan(talud_rad)  # avance horizontal por la altura dada
-base_menor = base - 2 * desplazamiento
+        # --- Geometría: validar que el talud sea compatible con base y altura ---
+        talud_rad = math.radians(talud_grados)
+        desplazamiento = altura / math.tan(talud_rad)  # avance horizontal por la altura dada
+        base_menor = base - 2 * desplazamiento
 
-if base_menor <= 0:
-    talud_minimo = math.degrees(math.atan(altura / (base / 2)))
-    st.error(
-        f"Con un talud de {talud_grados:.0f}°, una base de {base:.1f} m no "
-        f"alcanza a soportar {altura:.1f} m de altura (el trapecio se cierra "
-        f"antes). Con esta base y altura, el talud debe ser de al menos "
-        f"{talud_minimo:.1f}°. Ajusta el talud o confirma los valores con la "
-        f"contratista."
-    )
-    st.stop()
+        if base_menor <= 0:
+            talud_minimo = math.degrees(math.atan(altura / (base / 2)))
+            st.error(
+                f"Con un talud de {talud_grados:.0f}°, una base de {base:.1f} m no "
+                f"alcanza a soportar {altura:.1f} m de altura (el trapecio se cierra "
+                f"antes). Con esta base y altura, el talud debe ser de al menos "
+                f"{talud_minimo:.1f}°. Ajusta el talud o confirma los valores con la "
+                f"contratista."
+            )
+            st.stop()
 
-area_transversal = (base + base_menor) / 2 * altura
+        area_transversal = (base + base_menor) / 2 * altura
 
-# --- Masas del lote (kg) — vienen del Módulo 1 de formulación ---
-st.subheader("2. Masa total planificada para esta pila (kg)")
-st.caption(
-    "Este es el total que decides que va a entrar en la pila — por ejemplo, "
-    "el promedio real de ingreso diario multiplicado por los días que "
-    "planeas acumular. Normalmente vendría del Módulo 1 de formulación."
-)
+        # --- Masas del lote (kg) — vienen del Módulo 1 de formulación ---
+        st.subheader("2. Masa total planificada para esta pila (kg)")
+        st.caption(
+            "Este es el total que decides que va a entrar en la pila — por ejemplo, "
+            "el promedio real de ingreso diario multiplicado por los días que "
+            "planeas acumular. Normalmente vendría del Módulo 1 de formulación."
+        )
 
-c1, c2, c3, c4, c5 = st.columns(5)
-masa_ro = c1.number_input("RO", value=0.0, min_value=0.0, key="masa_ro")
-masa_ld = c2.number_input("LD", value=0.0, min_value=0.0, key="masa_ld")
-masa_as = c3.number_input("AS", value=0.0, min_value=0.0, key="masa_as")
-masa_ca = c4.number_input("CA", value=0.0, min_value=0.0, key="masa_ca")
-masa_rod = c5.number_input("ROD", value=0.0, min_value=0.0, key="masa_rod")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        masa_ro = c1.number_input("RO", value=0.0, min_value=0.0, key="masa_ro")
+        masa_ld = c2.number_input("LD", value=0.0, min_value=0.0, key="masa_ld")
+        masa_as = c3.number_input("AS", value=0.0, min_value=0.0, key="masa_as")
+        masa_ca = c4.number_input("CA", value=0.0, min_value=0.0, key="masa_ca")
+        masa_rod = c5.number_input("ROD", value=0.0, min_value=0.0, key="masa_rod")
 
-masas = {"RO": masa_ro, "LD": masa_ld, "AS": masa_as, "CA": masa_ca, "ROD": masa_rod}
-masa_total = sum(masas.values())
-volumen_total = sum(masas[i] / DENSIDADES[i] for i in masas if masas[i] > 0)
+        masas = {"RO": masa_ro, "LD": masa_ld, "AS": masa_as, "CA": masa_ca, "ROD": masa_rod}
+        masa_total = sum(masas.values())
+        volumen_total = sum(masas[i] / DENSIDADES[i] for i in masas if masas[i] > 0)
 
-m1, m2 = st.columns(2)
-m1.metric("Masa total del lote (kg)", f"{masa_total:,.0f}")
-m2.metric("Volumen total del lote (m³)", f"{volumen_total:.2f}")
+        m1, m2 = st.columns(2)
+        m1.metric("Masa total del lote (kg)", f"{masa_total:,.0f}")
+        m2.metric("Volumen total del lote (m³)", f"{volumen_total:.2f}")
 
-# --- Resultado del dimensionamiento ---
-if volumen_total > 0:
-    largo_pila = volumen_total / area_transversal
-    area_pila = base * largo_pila
-    area_total_reservada = area_pila + (distancia_entre_pilas * base)
+        # --- Resultado del dimensionamiento ---
+        if volumen_total > 0:
+            largo_pila = volumen_total / area_transversal
+            area_pila = base * largo_pila
+            area_total_reservada = area_pila + (distancia_entre_pilas * base)
 
-    st.subheader("3. Resultado")
-    r1, r2, r3 = st.columns(3)
-    r1.metric("Largo de pila necesario (m)", f"{largo_pila:.2f}")
-    r2.metric("Área de la pila (m²)", f"{area_pila:.2f}")
-    r3.metric("Área total a reservar (m²)", f"{area_total_reservada:.2f}")
+            st.subheader("3. Resultado")
+            r1, r2, r3 = st.columns(3)
+            r1.metric("Largo de pila necesario (m)", f"{largo_pila:.2f}")
+            r2.metric("Área de la pila (m²)", f"{area_pila:.2f}")
+            r3.metric("Área total a reservar (m²)", f"{area_total_reservada:.2f}")
 
-    st.caption(
-        f"Área total a reservar = área de la pila ({area_pila:.2f} m²) + "
-        f"franja de distancia de seguridad hacia la siguiente pila "
-        f"({distancia_entre_pilas:.1f} m × {base:.1f} m = "
-        f"{distancia_entre_pilas * base:.2f} m²). Este es el espacio que "
-        f"debes solicitar para poder formar la siguiente pila al lado."
-    )
-else:
-    st.info("Ingresa las masas del lote para calcular el dimensionamiento.")
+            st.caption(
+                f"Área total a reservar = área de la pila ({area_pila:.2f} m²) + "
+                f"franja de distancia de seguridad hacia la siguiente pila "
+                f"({distancia_entre_pilas:.1f} m × {base:.1f} m = "
+                f"{distancia_entre_pilas * base:.2f} m²). Este es el espacio que "
+                f"debes solicitar para poder formar la siguiente pila al lado."
+            )
+        else:
+            st.info("Ingresa las masas del lote para calcular el dimensionamiento.")
 
 # =================================================================
 # MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
