@@ -47,7 +47,10 @@ COLOR_BLANCO = "#FFFFFF"
 
 
 def buscar_archivo_logo():
-    
+    logo_preferido = "logo_compostaje_sidebar.png"
+    if os.path.exists(logo_preferido):
+        return logo_preferido
+
     extensiones_validas = (".png", ".jpg", ".jpeg", ".webp")
     try:
         for nombre_archivo in os.listdir("."):
@@ -74,7 +77,13 @@ st.markdown(
     }}
 
     .stApp {{
-        background-color: {COLOR_BLANCO};
+        background-color: {COLOR_FONDO_SUAVE};
+    }}
+
+    .block-container {{
+        padding-top: 1.6rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 1500px !important;
     }}
 
     [data-testid="stSidebar"] {{
@@ -88,7 +97,21 @@ st.markdown(
         display: block !important;
         margin-left: auto !important;
         margin-right: auto !important;
-        max-width: 125px !important;
+        max-width: 92px !important;
+    }}
+
+    [data-testid="stSidebar"] [data-testid="stRadio"] > div {{
+        gap: 4px !important;
+    }}
+
+    [data-testid="stSidebar"] [data-testid="stRadio"] label {{
+        border-radius: 10px !important;
+        padding: 8px 10px !important;
+        transition: background-color .15s ease;
+    }}
+
+    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{
+        background: rgba(52, 127, 246, .32) !important;
     }}
 
     [data-testid="stSidebar"] h1,
@@ -312,12 +335,14 @@ def mostrar_encabezado_app():
     st.divider()
 
 def encabezado(texto):
-    """Barra de título de cada módulo, sin íconos ni subtítulo — solo el nombre."""
+    """Encabezado compacto de módulo, alineado con el diseño aprobado."""
     st.markdown(
         f"""
-        <div style="background-color:{COLOR_AZUL}; padding:14px 20px; border-radius:14px;
-                    margin-bottom:14px; box-shadow:0 3px 10px rgba(3,23,149,0.15);">
-            <span style="color:white; font-size:22px; font-weight:700;">{texto}</span>
+        <div style="padding:2px 0 8px 0; margin-bottom:4px;">
+            <div style="color:#172B4D; font-size:24px; font-weight:700; line-height:1.2;">{texto}</div>
+            <div style="color:{COLOR_TEXTO_SECUNDARIO}; font-size:12px; margin-top:5px;">
+                Gestión operativa, trazabilidad y apoyo para la toma de decisiones.
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -775,6 +800,13 @@ elif rol_actual == "Sponsor":
     st.sidebar.info("Acceso de consulta y validación final en Laboratorio.")
 else:
     st.sidebar.info("Gestiona parámetros, catálogos y permisos.")
+
+if os.path.exists("innovacion_compostaje.png"):
+    st.sidebar.image(
+        "innovacion_compostaje.png",
+        use_container_width=True,
+        caption="Innovación aplicada al compostaje",
+    )
 # ---------------------------------------------------------------
 # 5. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
