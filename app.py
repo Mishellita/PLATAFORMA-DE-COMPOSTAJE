@@ -548,6 +548,12 @@ def recalcular_acumulados_lote(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[i, "masa_acumulada_ton"] = round(masa_acum_kg / 1000, 2)
         df.loc[i, "humedad_acumulada_%"] = round(humedad_acum_pct, 1)
         df.loc[i, "cn_acumulado"] = round(cn_acum, 1)
+        # Se guardan también en valores absolutos (no solo la razón cn_acumulado
+        # ni el % de humedad) porque el cálculo de capacidad de lodo necesita
+        # retomar el carbono/nitrógeno/agua ya acumulados como base fija.
+        df.loc[i, "carbono_acumulado_kg"] = round(carbono_acum_kg, 2)
+        df.loc[i, "nitrogeno_acumulado_kg"] = round(nitrogeno_acum_kg, 2)
+        df.loc[i, "agua_acumulada_kg"] = round(agua_acum_kg, 2)
 
     return df
 
@@ -591,6 +597,76 @@ def kg_requeridos_estructurante(fixed_carbono_kg, fixed_nitrogeno_kg, codigo_est
 
     x_kg = (cn_target * fixed_nitrogeno_kg - fixed_carbono_kg) / denominador
     return max(0.0, x_kg)
+
+
+def _x_para_cn_objetivo(carbono_fijo_kg, nitrogeno_fijo_kg, codigo_insumo, cn_objetivo):
+    """
+    KG (con signo) de `codigo_insumo` que, sumados a una base fija de carbono/
+    nitrógeno, llevan la relación C/N resultante exactamente a cn_objetivo.
+    Un valor negativo significa que ese objetivo solo se alcanzaría "quitando"
+    insumo, es decir, no es alcanzable agregando más. None si este insumo no
+    puede mover el C/N hacia ese objetivo (denominador cero).
+    """
+    ref = INSUMOS_REF[codigo_insumo]
+    fraccion_seca = 1 - ref["humedad"] / 100
+    c_insumo = fraccion_seca * (ref["carbono"] / 100)
+    n_insumo = fraccion_seca * (ref["nitrogeno"] / 100)
+
+    denominador = c_insumo - (cn_objetivo * n_insumo)
+    if denominador == 0:
+        return None
+    return (cn_objetivo * nitrogeno_fijo_kg - carbono_fijo_kg) / denominador
+
+
+def _x_para_humedad_objetivo(masa_fija_kg, agua_ponderada_fija_kg, codigo_insumo, humedad_objetivo):
+    """
+    KG (con signo) de `codigo_insumo` que, sumados a una masa fija con su agua
+    ponderada acumulada, llevan la humedad resultante exactamente a
+    humedad_objetivo (%). Mismo criterio de signo/None que _x_para_cn_objetivo.
+    """
+    humedad_insumo = INSUMOS_REF[codigo_insumo]["humedad"]
+    denominador = humedad_insumo - humedad_objetivo
+    if denominador == 0:
+        return None
+    return (humedad_objetivo * masa_fija_kg - agua_ponderada_fija_kg) / denominador
+
+
+def capacidad_insumo_en_rango(carbono_fijo_kg, nitrogeno_fijo_kg, masa_fija_kg, agua_ponderada_fija_kg,
+                               codigo_insumo, hum_min, hum_max, cn_min, cn_max):
+    """
+    Dada una mezcla base ya fija (lo acumulado en el lote + lo demás ingresado
+    hoy, sin contar `codigo_insumo`), calcula el rango de KG de `codigo_insumo`
+    que se le puede agregar para que la mezcla resultante quede simultáneamente
+    dentro de [hum_min, hum_max] de humedad y [cn_min, cn_max] de C/N.
+
+    Devuelve (kg_min, kg_max): kg_min puede ser 0 si ya es viable sin agregar
+    nada, y kg_max es el tope — "cuánto se puede procesar como máximo".
+    Devuelve (None, None) si no existe ninguna cantidad de este insumo que
+    logre ambos rangos a la vez con la base actual.
+    """
+    x_cn_a = _x_para_cn_objetivo(carbono_fijo_kg, nitrogeno_fijo_kg, codigo_insumo, cn_min)
+    x_cn_b = _x_para_cn_objetivo(carbono_fijo_kg, nitrogeno_fijo_kg, codigo_insumo, cn_max)
+    if x_cn_a is None or x_cn_b is None:
+        return None, None
+    lo_cn, hi_cn = min(x_cn_a, x_cn_b), max(x_cn_a, x_cn_b)
+    if hi_cn < 0:
+        return None, None
+    lo_cn = max(0.0, lo_cn)
+
+    x_h_a = _x_para_humedad_objetivo(masa_fija_kg, agua_ponderada_fija_kg, codigo_insumo, hum_min)
+    x_h_b = _x_para_humedad_objetivo(masa_fija_kg, agua_ponderada_fija_kg, codigo_insumo, hum_max)
+    if x_h_a is None or x_h_b is None:
+        return None, None
+    lo_h, hi_h = min(x_h_a, x_h_b), max(x_h_a, x_h_b)
+    if hi_h < 0:
+        return None, None
+    lo_h = max(0.0, lo_h)
+
+    lo_final = max(lo_cn, lo_h)
+    hi_final = min(hi_cn, hi_h)
+    if lo_final > hi_final:
+        return None, None
+    return lo_final, hi_final
 
 
 # ---------------------------------------------------------------
@@ -760,6 +836,80 @@ with tab_m1:
             for col, (codigo, ref) in zip(prop_cols, INSUMOS_REF.items()):
                 pct = (cantidades_ton[codigo] / total_ton_preview) * 100 if cantidades_ton[codigo] > 0 else 0
                 col.caption(f"{ref['nombre']}: **{pct:.0f}%**")
+
+        st.subheader("Capacidad de lodo (LD) para este lote")
+        st.caption(
+            "Con lo ya acumulado en el lote (días anteriores) más lo que ingreses hoy en los demás "
+            "insumos —sin contar el lodo—, este es el rango de lodo que se puede agregar hoy "
+            "manteniendo la humedad y la relación C/N acumuladas dentro del rango configurado en la "
+            "barra lateral."
+        )
+
+        cantidades_hoy_sin_ld_kg = {c: cantidades_ton[c] * 1000 for c in INSUMOS_REF if c != "LD"}
+        masa_hoy_sin_ld_kg, humedad_hoy_sin_ld_pct, carbono_hoy_sin_ld_kg, nitrogeno_hoy_sin_ld_kg, _ = calcular_mezcla(
+            cantidades_hoy_sin_ld_kg
+        )
+        agua_hoy_sin_ld_kg = masa_hoy_sin_ld_kg * (humedad_hoy_sin_ld_pct / 100) if masa_hoy_sin_ld_kg else 0.0
+
+        if codigo_lote in st.session_state.lotes:
+            fila_prev_cap = st.session_state.lotes[codigo_lote].iloc[-1]
+            carbono_previo_kg = float(fila_prev_cap.get("carbono_acumulado_kg", 0.0) or 0.0)
+            nitrogeno_previo_kg = float(fila_prev_cap.get("nitrogeno_acumulado_kg", 0.0) or 0.0)
+            masa_previa_kg = float(fila_prev_cap.get("masa_acumulada_ton", 0.0) or 0.0) * 1000
+            agua_previa_kg = float(fila_prev_cap.get("agua_acumulada_kg", 0.0) or 0.0)
+        else:
+            carbono_previo_kg = nitrogeno_previo_kg = masa_previa_kg = agua_previa_kg = 0.0
+
+        carbono_fijo_kg = carbono_previo_kg + carbono_hoy_sin_ld_kg
+        nitrogeno_fijo_kg = nitrogeno_previo_kg + nitrogeno_hoy_sin_ld_kg
+        masa_fija_kg = masa_previa_kg + masa_hoy_sin_ld_kg
+        agua_fija_kg = agua_previa_kg + agua_hoy_sin_ld_kg
+
+        if masa_fija_kg <= 0:
+            st.info(
+                "Aún no hay una mezcla base (lo acumulado del lote + lo demás ingresado hoy) sobre la "
+                "cual calcular cuánto lodo se puede procesar."
+            )
+        else:
+            lodo_min_kg, lodo_max_kg = capacidad_insumo_en_rango(
+                carbono_fijo_kg, nitrogeno_fijo_kg, masa_fija_kg, agua_fija_kg,
+                "LD", hum_min, hum_max, cn_min, cn_max
+            )
+            if lodo_max_kg is None:
+                st.error(
+                    "Con la mezcla acumulada hasta ahora (sin contar el lodo que agregues hoy), no existe "
+                    "ninguna cantidad de lodo que logre, a la vez, humedad y C/N dentro del rango "
+                    "configurado. Revisa las cantidades de RO/CA/AS/ROD ya ingresadas, o ajusta el rango "
+                    "en la barra lateral."
+                )
+            else:
+                lodo_min_ton, lodo_max_ton = lodo_min_kg / 1000, lodo_max_kg / 1000
+                if lodo_min_ton <= 0:
+                    st.success(
+                        f"Puedes agregar **hasta {lodo_max_ton:.2f} t** de lodo hoy sin salir de rango "
+                        f"(humedad {hum_min:.0f}-{hum_max:.0f}%, C/N {cn_min:.0f}-{cn_max:.0f})."
+                    )
+                else:
+                    st.warning(
+                        f"Para quedar dentro de rango se necesita agregar **entre {lodo_min_ton:.2f} y "
+                        f"{lodo_max_ton:.2f} t** de lodo hoy (humedad {hum_min:.0f}-{hum_max:.0f}%, "
+                        f"C/N {cn_min:.0f}-{cn_max:.0f})."
+                    )
+
+                ld_ingresado_ton = cantidades_ton["LD"]
+                if ld_ingresado_ton > 0:
+                    if lodo_min_ton <= ld_ingresado_ton <= lodo_max_ton:
+                        st.caption(f"El lodo que ingresaste ({ld_ingresado_ton:.2f} t) está dentro del rango calculado.")
+                    elif ld_ingresado_ton > lodo_max_ton:
+                        st.caption(
+                            f"⚠️ El lodo que ingresaste ({ld_ingresado_ton:.2f} t) supera el máximo calculado "
+                            f"({lodo_max_ton:.2f} t); la mezcla resultante quedaría fuera de rango."
+                        )
+                    else:
+                        st.caption(
+                            f"⚠️ El lodo que ingresaste ({ld_ingresado_ton:.2f} t) es menor al mínimo calculado "
+                            f"({lodo_min_ton:.2f} t); la mezcla resultante quedaría fuera de rango."
+                        )
 
         st.subheader("Microorganismos benéficos (complemento opcional)")
         st.caption(
