@@ -82,14 +82,8 @@ st.markdown(
         border-right: 1px solid {COLOR_BORDE};
     }}
 
-    /* Barra lateral fija y logo centrado */
-    section[data-testid="stSidebar"] {{
-        position: fixed !important;
-        top: 0 !important;
-        height: 100vh !important;
-        overflow-y: auto !important;
-        z-index: 999 !important;
-    }}
+    /* Streamlit mantiene la barra estable de forma nativa. No se fuerza
+       position: fixed porque eso superpone la barra sobre el contenido. */
     section[data-testid="stSidebar"] img {{
         display: block !important;
         margin-left: auto !important;
@@ -741,7 +735,11 @@ st.sidebar.markdown(
     "Gestión de Compostaje</div>",
     unsafe_allow_html=True,
 )
-st.sidebar.caption("Prototipo operativo — Sepersur")
+st.sidebar.markdown(
+    "<div style='text-align:center; color:#DCE7FF; font-size:12px; "
+    "line-height:1.35; margin-top:6px;'>Prototipo operativo — Sepersur</div>",
+    unsafe_allow_html=True,
+)
 st.sidebar.divider()
 rol_actual = st.sidebar.selectbox(
     "Perfil activo",
