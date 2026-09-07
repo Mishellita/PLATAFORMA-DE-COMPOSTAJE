@@ -368,9 +368,17 @@ INSUMOS_REF = {
     "ROD": {"nombre": "Residuos orgánicos deshidratados", "humedad": 6.52, "carbono": 48.3, "nitrogeno": 3.26, "cn": 15},
 }
 
+# Densidad referencial para convertir los microorganismos de litros a masa.
+# Puede actualizarse cuando se cuente con la ficha técnica del producto real.
+DENSIDAD_MICROORGANISMOS_KG_L = 1.0
+
+# En F1 el armado progresivo recibe estos materiales. El lodo se incorpora
+# solamente al finalizar el armado; el aserrín queda como insumo referencial.
+INSUMOS_ARMADO_F1 = ["RO", "ROD", "CA"]
+
 # Insumos que forman parte de la mezcla "base" (lo que llega a diario);
 # AS y CA son los estructurantes que se calculan/ajustan en el Módulo 2.
-INSUMOS_BASE = ["RO", "LD", "ROD"]
+INSUMOS_BASE = ["RO", "LD", "CA"]
 
 # Rango recomendado por literatura para iniciar la etapa mesófila.
 # Parámetro editable (no fijo) por el tema de altitud (3000 msnm).
@@ -440,6 +448,10 @@ if "salidas_compost" not in st.session_state:
     st.session_state["salidas_compost"] = {}
 if "laboratorio" not in st.session_state:
     st.session_state["laboratorio"] = {}
+if "cierres_armado_m1" not in st.session_state:
+    st.session_state["cierres_armado_m1"] = {}
+if "historial_cambios_m1" not in st.session_state:
+    st.session_state["historial_cambios_m1"] = []
 
 # Límites según NTP 201.207:2020 (FERTILIZANTES. Compost para uso agrícola.
 # Requisitos, 1ª Edición). Se usa como referencia técnica, aunque tu compost
@@ -468,8 +480,8 @@ if "zarandeo" not in st.session_state:
 # Lista de operadores para el selector.
 OPERADORES = ["Adrián Carpio", "Fernando Valdivia", "Mishel Ruiz", "Otro"]
 
-# Prefijo para los códigos de lote autogenerados, ej: CMP-2026-001
-PREFIJO_LOTE = "CMP"
+# Prefijo para los códigos de lote, por ejemplo: LT-2026-001
+PREFIJO_LOTE = "LT"
 
 # ---------------------------------------------------------------
 # 3. FUNCIONES DE CÁLCULO (compartidas entre módulos)
@@ -514,21 +526,37 @@ def recalcular_acumulados_lote(df: pd.DataFrame) -> pd.DataFrame:
     insumo (*_ton), no desde resultados previamente redondeados. Así se evita
     propagar pequeños errores de redondeo entre días.
     """
-    df = df.sort_values("fecha").reset_index(drop=True)
+    df = df.sort_values("fecha", kind="stable").reset_index(drop=True)
 
     masa_acum_kg = 0.0
     agua_acum_kg = 0.0
     carbono_acum_kg = 0.0
     nitrogeno_acum_kg = 0.0
+    micro_acum_kg = 0.0
 
     for i in range(len(df)):
+        if str(df.loc[i].get("estado_registro", "Activo")) == "Anulado":
+            df.loc[i, "masa_total_ton"] = 0.0
+            df.loc[i, "humedad_%"] = None
+            df.loc[i, "relacion_cn"] = None
+            df.loc[i, "carbono_total_kg"] = 0.0
+            df.loc[i, "nitrogeno_total_kg"] = 0.0
+            df.loc[i, "masa_acumulada_ton"] = round(masa_acum_kg / 1000, 2)
+            masa_tecnica_acum_kg = masa_acum_kg - micro_acum_kg
+            df.loc[i, "humedad_acumulada_%"] = round((agua_acum_kg / masa_tecnica_acum_kg) * 100, 1) if masa_tecnica_acum_kg else 0.0
+            df.loc[i, "cn_acumulado"] = round(carbono_acum_kg / nitrogeno_acum_kg, 1) if nitrogeno_acum_kg else 0.0
+            continue
+
         cantidades_fila_kg = {}
         for codigo in INSUMOS_REF:
             col_ton = f"{codigo}_ton"
             valor_ton = float(df.loc[i, col_ton]) if col_ton in df.columns and pd.notna(df.loc[i, col_ton]) else 0.0
             cantidades_fila_kg[codigo] = valor_ton * 1000
 
-        masa_kg, humedad_pct, carbono_kg, nitrogeno_kg, cn_fila = calcular_mezcla(cantidades_fila_kg)
+        masa_calculo_kg, humedad_pct, carbono_kg, nitrogeno_kg, cn_fila = calcular_mezcla(cantidades_fila_kg)
+        micro_l = float(df.loc[i].get("microorganismos_L", 0.0) or 0.0)
+        micro_kg = micro_l * DENSIDAD_MICROORGANISMOS_KG_L
+        masa_kg = masa_calculo_kg + micro_kg
 
         # Mantener actualizados también los resultados individuales de la fila.
         df.loc[i, "masa_total_ton"] = round(masa_kg / 1000, 2)
@@ -538,24 +566,68 @@ def recalcular_acumulados_lote(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[i, "nitrogeno_total_kg"] = round(nitrogeno_kg, 2)
 
         masa_acum_kg += masa_kg
-        agua_acum_kg += masa_kg * (humedad_pct / 100)
+        micro_acum_kg += micro_kg
+        # Los microorganismos suman masa, pero por regla de F1 no alteran
+        # humedad ni C/N. Por ello el balance técnico usa solo los sólidos
+        # caracterizados, mientras la masa total sí incorpora su equivalencia.
+        agua_acum_kg += masa_calculo_kg * (humedad_pct / 100)
         carbono_acum_kg += carbono_kg
         nitrogeno_acum_kg += nitrogeno_kg
 
-        humedad_acum_pct = (agua_acum_kg / masa_acum_kg) * 100 if masa_acum_kg else 0.0
+        masa_tecnica_acum_kg = masa_acum_kg - micro_acum_kg
+        humedad_acum_pct = (agua_acum_kg / masa_tecnica_acum_kg) * 100 if masa_tecnica_acum_kg else 0.0
         cn_acum = carbono_acum_kg / nitrogeno_acum_kg if nitrogeno_acum_kg else 0.0
 
         df.loc[i, "masa_acumulada_ton"] = round(masa_acum_kg / 1000, 2)
         df.loc[i, "humedad_acumulada_%"] = round(humedad_acum_pct, 1)
         df.loc[i, "cn_acumulado"] = round(cn_acum, 1)
-        # Se guardan también en valores absolutos (no solo la razón cn_acumulado
-        # ni el % de humedad) porque el cálculo de capacidad de lodo necesita
-        # retomar el carbono/nitrógeno/agua ya acumulados como base fija.
-        df.loc[i, "carbono_acumulado_kg"] = round(carbono_acum_kg, 2)
-        df.loc[i, "nitrogeno_acumulado_kg"] = round(nitrogeno_acum_kg, 2)
-        df.loc[i, "agua_acumulada_kg"] = round(agua_acum_kg, 2)
 
     return df
+
+
+def calcular_intervalo_lodo(masa_base_kg, agua_base_kg, carbono_base_kg, nitrogeno_base_kg,
+                            hum_min, hum_max, cn_min, cn_max):
+    """Calcula el intervalo de LD que mantiene simultáneamente humedad y C/N."""
+    ld = INSUMOS_REF["LD"]
+    h_ld = ld["humedad"] / 100
+    ms_ld = 1 - h_ld
+    c_ld = ms_ld * ld["carbono"] / 100
+    n_ld = ms_ld * ld["nitrogeno"] / 100
+    minimo, maximo = 0.0, float("inf")
+    limites_activos = []
+
+    def aplicar(a, b, nombre):
+        nonlocal minimo, maximo
+        # Restricción lineal a*x + b >= 0, con x >= 0.
+        if abs(a) < 1e-12:
+            return b >= -1e-9
+        corte = -b / a
+        if a > 0:
+            if corte > minimo:
+                minimo = max(0.0, corte)
+                limites_activos.append(("mínimo", nombre))
+        else:
+            if corte < maximo:
+                maximo = corte
+                limites_activos.append(("máximo", nombre))
+        return maximo >= max(0.0, minimo) - 1e-9
+
+    restricciones = [
+        (h_ld - hum_min / 100, agua_base_kg - hum_min / 100 * masa_base_kg, "humedad mínima"),
+        (hum_max / 100 - h_ld, hum_max / 100 * masa_base_kg - agua_base_kg, "humedad máxima"),
+        (c_ld - cn_min * n_ld, carbono_base_kg - cn_min * nitrogeno_base_kg, "C/N mínima"),
+        (cn_max * n_ld - c_ld, cn_max * nitrogeno_base_kg - carbono_base_kg, "C/N máxima"),
+    ]
+    for a, b, nombre in restricciones:
+        if not aplicar(a, b, nombre):
+            return None, None, "No existe una cantidad de lodo que cumpla simultáneamente ambos rangos."
+
+    if maximo < 0 or minimo > maximo:
+        return None, None, "No existe una cantidad de lodo que cumpla simultáneamente ambos rangos."
+
+    factores = sorted({nombre.split()[0] for _, nombre in limites_activos})
+    factor = " y ".join(factores) if factores else "sin restricción adicional"
+    return max(0.0, minimo), maximo, factor
 
 
 def generar_recomendacion(humedad_pct, relacion_cn, hum_min, hum_max, cn_min, cn_max):
@@ -597,76 +669,6 @@ def kg_requeridos_estructurante(fixed_carbono_kg, fixed_nitrogeno_kg, codigo_est
 
     x_kg = (cn_target * fixed_nitrogeno_kg - fixed_carbono_kg) / denominador
     return max(0.0, x_kg)
-
-
-def _x_para_cn_objetivo(carbono_fijo_kg, nitrogeno_fijo_kg, codigo_insumo, cn_objetivo):
-    """
-    KG (con signo) de `codigo_insumo` que, sumados a una base fija de carbono/
-    nitrógeno, llevan la relación C/N resultante exactamente a cn_objetivo.
-    Un valor negativo significa que ese objetivo solo se alcanzaría "quitando"
-    insumo, es decir, no es alcanzable agregando más. None si este insumo no
-    puede mover el C/N hacia ese objetivo (denominador cero).
-    """
-    ref = INSUMOS_REF[codigo_insumo]
-    fraccion_seca = 1 - ref["humedad"] / 100
-    c_insumo = fraccion_seca * (ref["carbono"] / 100)
-    n_insumo = fraccion_seca * (ref["nitrogeno"] / 100)
-
-    denominador = c_insumo - (cn_objetivo * n_insumo)
-    if denominador == 0:
-        return None
-    return (cn_objetivo * nitrogeno_fijo_kg - carbono_fijo_kg) / denominador
-
-
-def _x_para_humedad_objetivo(masa_fija_kg, agua_ponderada_fija_kg, codigo_insumo, humedad_objetivo):
-    """
-    KG (con signo) de `codigo_insumo` que, sumados a una masa fija con su agua
-    ponderada acumulada, llevan la humedad resultante exactamente a
-    humedad_objetivo (%). Mismo criterio de signo/None que _x_para_cn_objetivo.
-    """
-    humedad_insumo = INSUMOS_REF[codigo_insumo]["humedad"]
-    denominador = humedad_insumo - humedad_objetivo
-    if denominador == 0:
-        return None
-    return (humedad_objetivo * masa_fija_kg - agua_ponderada_fija_kg) / denominador
-
-
-def capacidad_insumo_en_rango(carbono_fijo_kg, nitrogeno_fijo_kg, masa_fija_kg, agua_ponderada_fija_kg,
-                               codigo_insumo, hum_min, hum_max, cn_min, cn_max):
-    """
-    Dada una mezcla base ya fija (lo acumulado en el lote + lo demás ingresado
-    hoy, sin contar `codigo_insumo`), calcula el rango de KG de `codigo_insumo`
-    que se le puede agregar para que la mezcla resultante quede simultáneamente
-    dentro de [hum_min, hum_max] de humedad y [cn_min, cn_max] de C/N.
-
-    Devuelve (kg_min, kg_max): kg_min puede ser 0 si ya es viable sin agregar
-    nada, y kg_max es el tope — "cuánto se puede procesar como máximo".
-    Devuelve (None, None) si no existe ninguna cantidad de este insumo que
-    logre ambos rangos a la vez con la base actual.
-    """
-    x_cn_a = _x_para_cn_objetivo(carbono_fijo_kg, nitrogeno_fijo_kg, codigo_insumo, cn_min)
-    x_cn_b = _x_para_cn_objetivo(carbono_fijo_kg, nitrogeno_fijo_kg, codigo_insumo, cn_max)
-    if x_cn_a is None or x_cn_b is None:
-        return None, None
-    lo_cn, hi_cn = min(x_cn_a, x_cn_b), max(x_cn_a, x_cn_b)
-    if hi_cn < 0:
-        return None, None
-    lo_cn = max(0.0, lo_cn)
-
-    x_h_a = _x_para_humedad_objetivo(masa_fija_kg, agua_ponderada_fija_kg, codigo_insumo, hum_min)
-    x_h_b = _x_para_humedad_objetivo(masa_fija_kg, agua_ponderada_fija_kg, codigo_insumo, hum_max)
-    if x_h_a is None or x_h_b is None:
-        return None, None
-    lo_h, hi_h = min(x_h_a, x_h_b), max(x_h_a, x_h_b)
-    if hi_h < 0:
-        return None, None
-    lo_h = max(0.0, lo_h)
-
-    lo_final = max(lo_cn, lo_h)
-    hi_final = min(hi_cn, hi_h)
-    if lo_final > hi_final:
-        return None, None
-    return lo_final, hi_final
 
 
 # ---------------------------------------------------------------
@@ -776,376 +778,278 @@ tab_m1, tab_m2, tab_m3, tab_m4, tab_m5 = st.tabs([
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
 with tab_m1:
-    encabezado("Módulo 1 — Formulación de Lotes")
-    st.caption(
-        "Registra los residuos que ingresan a cada lote y calcula automáticamente su humedad y relación "
-        "carbono/nitrógeno, con historial acumulado día a día."
-    )
+    encabezado("Módulo 1 — Armado progresivo del lote")
+    st.caption("Registra el armado real, calcula sus acumulados y determina cuánto lodo puede incorporarse al cierre.")
 
-    tab_nuevo, tab_historial, tab_dimensionamiento = st.tabs([
-        "Nuevo ingreso a un lote",
-        "Historial de lotes",
-        "Dimensionamiento de pilas",
+    rol_m1 = st.radio("Vista activa", ["Operador", "Supervisor"], horizontal=True, key="rol_m1")
+    es_supervisor = rol_m1 == "Supervisor"
+    st.caption(f"Permisos activos: {rol_m1}. " + ("Puede crear, corregir, anular, simular y cerrar lotes." if es_supervisor else "Puede registrar ingresos en lotes abiertos y consultar el historial."))
+
+    tab_nuevo, tab_historial, tab_cierre, tab_simulador, tab_dimensionamiento = st.tabs([
+        "Ingreso progresivo", "Historial y trazabilidad", "Capacidad de lodo y cierre",
+        "¿Qué pasaría si...?", "Dimensionamiento de pilas",
     ])
 
-    # ---- PESTAÑA: NUEVO INGRESO ---------------------------------------
+    def _lote_abierto(codigo):
+        return codigo not in st.session_state["cierres_armado_m1"]
+
+    def _resumen_tecnico(df):
+        activos = df[df.get("estado_registro", pd.Series("Activo", index=df.index)).fillna("Activo") != "Anulado"]
+        cantidades = {}
+        for codigo in INSUMOS_REF:
+            col = f"{codigo}_ton"
+            cantidades[codigo] = float(activos[col].fillna(0).sum()) * 1000 if col in activos else 0.0
+        masa, humedad, carbono, nitrogeno, cn = calcular_mezcla(cantidades)
+        micro_l = float(activos["microorganismos_L"].fillna(0).sum()) if "microorganismos_L" in activos else 0.0
+        return masa, humedad, carbono, nitrogeno, cn, micro_l
+
     with tab_nuevo:
-        col1, col2, col3 = st.columns(3)
+        lotes_abiertos = [c for c in st.session_state.lotes if _lote_abierto(c)]
+        modo = "Crear lote nuevo" if es_supervisor else "Agregar a lote existente"
+        if es_supervisor:
+            modo = st.radio("Acción", ["Crear lote nuevo", "Agregar a lote existente"], horizontal=True)
 
-        with col1:
-            operador_sel = st.selectbox("Operador", OPERADORES, key="m1_operador_sel")
-            if operador_sel == "Otro":
-                operador = st.text_input("Nombre del operador (nuevo)", key="m1_operador_otro")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            operador_sel = st.selectbox("Responsable del registro", OPERADORES, key="m1_operador_sel")
+            operador = st.text_input("Nombre del responsable", key="m1_operador_otro") if operador_sel == "Otro" else operador_sel
+        with c2:
+            fecha_ingreso = st.date_input("Fecha del ingreso", value=date.today(), key="m1_fecha")
+        with c3:
+            if modo == "Crear lote nuevo":
+                nums = [int(c.split("-")[-1]) for c in st.session_state.lotes if c.startswith("LT-") and c.split("-")[-1].isdigit()]
+                numero_lote = st.number_input("Numeración del lote", 1, step=1, value=max(nums) + 1 if nums else 1)
+                codigo_lote = f"LT-{fecha_ingreso.year}-{int(numero_lote):03d}"
+                st.caption(f"Código normalizado: **{codigo_lote}**")
+            elif lotes_abiertos:
+                codigo_lote = st.selectbox("Lote abierto", lotes_abiertos)
             else:
-                operador = operador_sel
+                codigo_lote = None
+                st.info("No existen lotes abiertos. El supervisor debe crear uno.")
 
-        with col2:
-            fecha_ingreso = st.date_input("Fecha", value=date.today(), key="m1_fecha")
-
-        with col3:
-            nums_existentes = [
-                int(c.split("-")[-1]) for c in st.session_state.lotes.keys()
-                if c.startswith(PREFIJO_LOTE) and c.split("-")[-1].isdigit()
-            ]
-            siguiente_num = max(nums_existentes) + 1 if nums_existentes else 1
-
-            numero_lote = st.number_input("Número de lote", min_value=1, step=1, value=siguiente_num, key="m1_numero_lote")
-            codigo_lote = f"{PREFIJO_LOTE}-{fecha_ingreso.year}-{int(numero_lote):03d}"
-
-            if codigo_lote in st.session_state.lotes:
-                st.caption(f"Código: **{codigo_lote}** (lote existente, se agregará este ingreso a su historial)")
-            else:
-                st.caption(f"Código: **{codigo_lote}** (lote nuevo)")
-
-        st.subheader("Cantidades ingresadas hoy (toneladas)")
-        st.caption("1 tonelada = 1000 kg. Los cálculos internos son los mismos, solo cambia la unidad de ingreso.")
-        cols = st.columns(len(INSUMOS_REF))
-        cantidades_ton = {}
-        for col, (codigo, ref) in zip(cols, INSUMOS_REF.items()):
-            with col:
-                cantidades_ton[codigo] = st.number_input(
-                    f"{ref['nombre']} ({codigo})", min_value=0.0, step=0.1, format="%.2f", key=f"nuevo_{codigo}"
-                )
-                if cantidades_ton[codigo] > 0:
-                    st.caption(f"= {cantidades_ton[codigo] * 1000:.0f} kg")
-
-        total_ton_preview = sum(cantidades_ton.values())
-        if total_ton_preview > 0:
-            st.caption("Proporción de esta mezcla (según lo ingresado arriba):")
-            prop_cols = st.columns(len(INSUMOS_REF))
-            for col, (codigo, ref) in zip(prop_cols, INSUMOS_REF.items()):
-                pct = (cantidades_ton[codigo] / total_ton_preview) * 100 if cantidades_ton[codigo] > 0 else 0
-                col.caption(f"{ref['nombre']}: **{pct:.0f}%**")
-
-        st.subheader("Capacidad de lodo (LD) para este lote")
-        st.caption(
-            "Con lo ya acumulado en el lote (días anteriores) más lo que ingreses hoy en los demás "
-            "insumos —sin contar el lodo—, este es el rango de lodo que se puede agregar hoy "
-            "manteniendo la humedad y la relación C/N acumuladas dentro del rango configurado en la "
-            "barra lateral."
-        )
-
-        cantidades_hoy_sin_ld_kg = {c: cantidades_ton[c] * 1000 for c in INSUMOS_REF if c != "LD"}
-        masa_hoy_sin_ld_kg, humedad_hoy_sin_ld_pct, carbono_hoy_sin_ld_kg, nitrogeno_hoy_sin_ld_kg, _ = calcular_mezcla(
-            cantidades_hoy_sin_ld_kg
-        )
-        agua_hoy_sin_ld_kg = masa_hoy_sin_ld_kg * (humedad_hoy_sin_ld_pct / 100) if masa_hoy_sin_ld_kg else 0.0
-
-        if codigo_lote in st.session_state.lotes:
-            fila_prev_cap = st.session_state.lotes[codigo_lote].iloc[-1]
-            carbono_previo_kg = float(fila_prev_cap.get("carbono_acumulado_kg", 0.0) or 0.0)
-            nitrogeno_previo_kg = float(fila_prev_cap.get("nitrogeno_acumulado_kg", 0.0) or 0.0)
-            masa_previa_kg = float(fila_prev_cap.get("masa_acumulada_ton", 0.0) or 0.0) * 1000
-            agua_previa_kg = float(fila_prev_cap.get("agua_acumulada_kg", 0.0) or 0.0)
-        else:
-            carbono_previo_kg = nitrogeno_previo_kg = masa_previa_kg = agua_previa_kg = 0.0
-
-        carbono_fijo_kg = carbono_previo_kg + carbono_hoy_sin_ld_kg
-        nitrogeno_fijo_kg = nitrogeno_previo_kg + nitrogeno_hoy_sin_ld_kg
-        masa_fija_kg = masa_previa_kg + masa_hoy_sin_ld_kg
-        agua_fija_kg = agua_previa_kg + agua_hoy_sin_ld_kg
-
-        if masa_fija_kg <= 0:
-            st.info(
-                "Aún no hay una mezcla base (lo acumulado del lote + lo demás ingresado hoy) sobre la "
-                "cual calcular cuánto lodo se puede procesar."
+        if codigo_lote in st.session_state.lotes and not _lote_abierto(codigo_lote):
+            st.error("El armado de este lote ya está cerrado y no admite nuevos ingresos.")
+        elif codigo_lote:
+            st.subheader("Materiales incorporados hoy")
+            st.caption("El lodo todavía no se registra aquí; se incorpora únicamente al finalizar el armado.")
+            cantidades_ton = {}
+            cols = st.columns(3)
+            for col, codigo in zip(cols, INSUMOS_ARMADO_F1):
+                with col:
+                    cantidades_ton[codigo] = st.number_input(
+                        f"{INSUMOS_REF[codigo]['nombre']} ({codigo}), t", min_value=0.0,
+                        step=0.1, format="%.2f", key=f"nuevo_f1_{codigo}"
+                    )
+            microorganismos_L = st.number_input(
+                "Microorganismos benéficos (L) — opcional", min_value=0.0, step=0.1,
+                format="%.2f", key="nuevo_microorganismos_L"
             )
-        else:
-            lodo_min_kg, lodo_max_kg = capacidad_insumo_en_rango(
-                carbono_fijo_kg, nitrogeno_fijo_kg, masa_fija_kg, agua_fija_kg,
-                "LD", hum_min, hum_max, cn_min, cn_max
-            )
-            if lodo_max_kg is None:
-                st.error(
-                    "Con la mezcla acumulada hasta ahora (sin contar el lodo que agregues hoy), no existe "
-                    "ninguna cantidad de lodo que logre, a la vez, humedad y C/N dentro del rango "
-                    "configurado. Revisa las cantidades de RO/CA/AS/ROD ya ingresadas, o ajusta el rango "
-                    "en la barra lateral."
-                )
-            else:
-                lodo_min_ton, lodo_max_ton = lodo_min_kg / 1000, lodo_max_kg / 1000
-                if lodo_min_ton <= 0:
-                    st.success(
-                        f"Puedes agregar **hasta {lodo_max_ton:.2f} t** de lodo hoy sin salir de rango "
-                        f"(humedad {hum_min:.0f}-{hum_max:.0f}%, C/N {cn_min:.0f}-{cn_max:.0f})."
-                    )
+            st.caption(f"Equivalencia usada: {DENSIDAD_MICROORGANISMOS_KG_L:.2f} kg/L. Suma a la masa total, pero no modifica humedad ni C/N.")
+
+            cantidades_kg = {c: cantidades_ton.get(c, 0.0) * 1000 for c in INSUMOS_REF}
+            masa_tecnica, humedad_pct, c_total, n_total, cn = calcular_mezcla(cantidades_kg)
+            masa_micro = microorganismos_L * DENSIDAD_MICROORGANISMOS_KG_L
+            masa_total = masa_tecnica + masa_micro
+            if masa_total > 0:
+                st.subheader("Vista previa antes de guardar")
+                p1, p2, p3, p4 = st.columns(4)
+                p1.metric("Masa del ingreso", f"{masa_total / 1000:.2f} t")
+                p2.metric("Microorganismos", f"{masa_micro:.1f} kg")
+                p3.metric("Humedad calculada", f"{humedad_pct:.1f} %")
+                p4.metric("Relación C/N", f"{cn:.1f} : 1")
+
+            confirmar = st.checkbox("Confirmo que las cantidades mostradas corresponden al ingreso real.", key="confirmar_ingreso_m1")
+            if st.button("Guardar ingreso confirmado", type="primary", disabled=not confirmar):
+                if not operador:
+                    st.error("Ingresa el responsable del registro.")
+                elif codigo_lote in st.session_state.lotes and not _lote_abierto(codigo_lote):
+                    st.error("No se puede registrar porque el armado está cerrado.")
+                elif codigo_lote not in st.session_state.lotes and not es_supervisor:
+                    st.error("Solo el supervisor puede crear un lote.")
+                elif codigo_lote not in st.session_state.lotes and any(c.startswith(f"LT-{fecha_ingreso.year}-{int(numero_lote):03d}") for c in st.session_state.lotes):
+                    st.error("El código del lote ya existe.")
+                elif sum(cantidades_ton.values()) == 0 and microorganismos_L == 0:
+                    st.error("Ingresa al menos una cantidad mayor a cero.")
                 else:
-                    st.warning(
-                        f"Para quedar dentro de rango se necesita agregar **entre {lodo_min_ton:.2f} y "
-                        f"{lodo_max_ton:.2f} t** de lodo hoy (humedad {hum_min:.0f}-{hum_max:.0f}%, "
-                        f"C/N {cn_min:.0f}-{cn_max:.0f})."
-                    )
+                    total_materiales = sum(cantidades_ton.values())
+                    fila = {
+                        "id_registro": f"{codigo_lote}-{len(st.session_state.lotes.get(codigo_lote, [])) + 1:03d}",
+                        "tipo_registro": "Ingreso progresivo", "fecha": fecha_ingreso, "operador": operador,
+                        "estado_registro": "Activo", "motivo_anulacion": "", "observacion": "",
+                        "hum_min_lote": hum_min, "hum_max_lote": hum_max, "cn_min_lote": cn_min, "cn_max_lote": cn_max,
+                        **{f"{c}_ton": round(cantidades_ton.get(c, 0.0), 2) for c in INSUMOS_REF},
+                        **{f"{c}_%mezcla": round(cantidades_ton.get(c, 0.0) / total_materiales * 100, 1) if total_materiales else 0 for c in INSUMOS_REF},
+                        "microorganismos_L": round(microorganismos_L, 2), "masa_total_ton": round(masa_total / 1000, 3),
+                        "humedad_%": round(humedad_pct, 1), "relacion_cn": round(cn, 1) if math.isfinite(cn) else None,
+                        "masa_acumulada_ton": None, "humedad_acumulada_%": None, "cn_acumulado": None,
+                        "carbono_total_kg": round(c_total, 2), "nitrogeno_total_kg": round(n_total, 2),
+                    }
+                    nuevo = pd.DataFrame([fila])
+                    actual = st.session_state.lotes.get(codigo_lote)
+                    combinado = pd.concat([actual, nuevo], ignore_index=True) if actual is not None else nuevo
+                    st.session_state.lotes[codigo_lote] = recalcular_acumulados_lote(combinado)
+                    st.success(f"Ingreso guardado en {codigo_lote}. Fecha de inicio: {st.session_state.lotes[codigo_lote]['fecha'].min().strftime('%d/%m/%Y')}.")
 
-                ld_ingresado_ton = cantidades_ton["LD"]
-                if ld_ingresado_ton > 0:
-                    if lodo_min_ton <= ld_ingresado_ton <= lodo_max_ton:
-                        st.caption(f"El lodo que ingresaste ({ld_ingresado_ton:.2f} t) está dentro del rango calculado.")
-                    elif ld_ingresado_ton > lodo_max_ton:
-                        st.caption(
-                            f"⚠️ El lodo que ingresaste ({ld_ingresado_ton:.2f} t) supera el máximo calculado "
-                            f"({lodo_max_ton:.2f} t); la mezcla resultante quedaría fuera de rango."
-                        )
-                    else:
-                        st.caption(
-                            f"⚠️ El lodo que ingresaste ({ld_ingresado_ton:.2f} t) es menor al mínimo calculado "
-                            f"({lodo_min_ton:.2f} t); la mezcla resultante quedaría fuera de rango."
-                        )
-
-        st.subheader("Microorganismos benéficos (complemento opcional)")
-        st.caption(
-            "Complemento que puede aplicarse eventualmente al lote. Se registra solo para trazabilidad y costo, "
-            "pero NO forma parte de los insumos base y NO entra en el cálculo de masa, humedad ni relación C/N."
-        )
-        microorganismos_L = st.number_input(
-            "Cantidad aplicada (litros)", min_value=0.0, step=0.1, format="%.2f", key="nuevo_microorganismos_L"
-        )
-
-        fecha_duplicada = (
-            codigo_lote in st.session_state.lotes
-            and (st.session_state.lotes[codigo_lote]["fecha"] == fecha_ingreso).any()
-        )
-
-        if st.button("Calcular y registrar ingreso", type="primary"):
-            if not operador:
-                st.error("Ingresa el nombre del operador.")
-            elif sum(cantidades_ton.values()) == 0:
-                st.error(
-                    "No se registró ninguna cantidad. Ingresa al menos un valor mayor a 0 "
-                    "en algún insumo y confirma que el número quedó escrito en el recuadro "
-                    "antes de presionar el botón (en el celular, a veces hay que tocar fuera "
-                    "del recuadro para que el número quede guardado)."
-                )
-            elif fecha_duplicada:
-                st.error(
-                    f"Ya existe un ingreso registrado para el lote **{codigo_lote}** en la fecha "
-                    f"**{fecha_ingreso.strftime('%d/%m/%Y')}**. Solo se permite un registro por lote "
-                    "y por día. Si te equivocaste en algún dato, ve a la pestaña **Historial de lotes** "
-                    "→ **Corregir o eliminar un ingreso** para editarlo o borrarlo antes de volver a intentar."
-                )
-            else:
-                cantidades = {codigo: ton * 1000 for codigo, ton in cantidades_ton.items()}
-                masa, humedad_pct, c_total, n_total, cn = calcular_mezcla(cantidades)
-
-                nueva_fila = pd.DataFrame([{
-                    "fecha": fecha_ingreso,
-                    "operador": operador,
-                    **{f"{c}_ton": round(cantidades_ton[c], 2) for c in INSUMOS_REF},
-                    **{f"{c}_%mezcla": round((cantidades_ton[c] / total_ton_preview) * 100, 1) if total_ton_preview else 0 for c in INSUMOS_REF},
-                    "microorganismos_L": round(microorganismos_L, 2),
-                    "masa_total_ton": round(masa / 1000, 2),
-                    "humedad_%": round(humedad_pct, 1),
-                    "relacion_cn": round(cn, 1) if cn != float("inf") else None,
-                    "masa_acumulada_ton": None,       # se completa abajo con recalcular_acumulados_lote
-                    "humedad_acumulada_%": None,
-                    "cn_acumulado": None,
-                    "carbono_total_kg": round(c_total, 2),
-                    "nitrogeno_total_kg": round(n_total, 2),
-                }])
-
-                if codigo_lote in st.session_state.lotes:
-                    df_actualizado = pd.concat(
-                        [st.session_state.lotes[codigo_lote], nueva_fila], ignore_index=True
-                    )
-                else:
-                    df_actualizado = nueva_fila
-
-                # Lotes creados antes de agregar este campo no tienen la columna: se rellenan en 0.
-                if "microorganismos_L" not in df_actualizado.columns:
-                    df_actualizado["microorganismos_L"] = 0.0
-                df_actualizado["microorganismos_L"] = df_actualizado["microorganismos_L"].fillna(0.0)
-
-                st.session_state.lotes[codigo_lote] = recalcular_acumulados_lote(df_actualizado)
-
-                # Valores acumulados ya recalculados, para mostrarlos abajo
-                fila_actual = st.session_state.lotes[codigo_lote][
-                    st.session_state.lotes[codigo_lote]["fecha"] == fecha_ingreso
-                ].iloc[-1]
-                masa_acum = fila_actual["masa_acumulada_ton"] * 1000
-                humedad_acum_pct = fila_actual["humedad_acumulada_%"]
-                cn_acum = fila_actual["cn_acumulado"]
-
-                st.success(f"Ingreso registrado en el lote {codigo_lote}.")
-
-                st.subheader("Resultado de este ingreso")
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Masa ingresada", f"{masa / 1000:.2f} t")
-                m2.metric("Humedad", f"{humedad_pct:.1f} %")
-                m3.metric("Relación C/N", f"{cn:.1f} : 1")
-
-                with st.expander("Ver balance de masa de este ingreso"):
-                    agua_estimada = masa * (humedad_pct / 100)
-                    masa_seca_estimada = masa - agua_estimada
-                    b1, b2, b3 = st.columns(3)
-                    b1.metric("Masa húmeda (total ingresado)", f"{masa / 1000:.2f} t")
-                    b2.metric("Agua estimada", f"{agua_estimada / 1000:.2f} t")
-                    b3.metric("Masa seca estimada", f"{masa_seca_estimada / 1000:.2f} t")
-                    st.caption(
-                        "Agua estimada = masa húmeda × humedad (%). "
-                        "Masa seca estimada = masa húmeda − agua estimada. "
-                        "El carbono y nitrógeno se calculan sobre la masa seca."
-                    )
-
-                st.subheader("Acumulado del lote (todo lo ingresado hasta hoy)")
-                m4, m5, m6 = st.columns(3)
-                m4.metric("Masa total del lote", f"{masa_acum / 1000:.2f} t")
-                m5.metric("Humedad acumulada", f"{humedad_acum_pct:.1f} %")
-                m6.metric("C/N acumulado", f"{cn_acum:.1f} : 1")
-
-                st.subheader("Recomendaciones (según acumulado del lote)")
-                for texto, tipo in generar_recomendacion(humedad_acum_pct, cn_acum, hum_min, hum_max, cn_min, cn_max):
-                    if tipo == "success":
-                        st.success(texto)
-                    elif tipo == "warning":
-                        st.warning(texto)
-                    else:
-                        st.error(texto)
-
-    # ---- PESTAÑA: HISTORIAL --------------------------------------------
     with tab_historial:
         if not st.session_state.lotes:
-            st.info("Aún no hay lotes registrados. Ve a la pestaña 'Nuevo ingreso' para comenzar.")
+            st.info("Aún no existen lotes registrados.")
         else:
-            lote_seleccionado = st.selectbox("Selecciona un lote", list(st.session_state.lotes.keys()), key="m1_hist_sel")
-            df_lote = st.session_state.lotes[lote_seleccionado]
-            st.dataframe(df_lote, use_container_width=True)
+            lote_hist = st.selectbox("Selecciona un lote", list(st.session_state.lotes), key="m1_hist_sel")
+            df_lote = st.session_state.lotes[lote_hist]
+            columnas = [c for c in ["id_registro", "fecha", "tipo_registro", "operador", "RO_ton", "ROD_ton", "CA_ton", "LD_ton", "microorganismos_L", "estado_registro", "masa_acumulada_ton", "humedad_acumulada_%", "cn_acumulado"] if c in df_lote]
+            st.dataframe(df_lote[columnas], use_container_width=True, hide_index=True)
+            st.download_button("Descargar historial del lote (CSV)", df_lote.to_csv(index=False).encode("utf-8"), f"{lote_hist}_historial.csv", "text/csv")
+            estado_lote = "Armado cerrado" if not _lote_abierto(lote_hist) else "En armado"
+            st.info(f"Estado del lote: **{estado_lote}**. Los registros anulados permanecen visibles y no participan en los acumulados.")
 
-            csv = df_lote.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "Descargar historial de este lote (CSV)",
-                data=csv,
-                file_name=f"{lote_seleccionado}_historial.csv",
-                mime="text/csv",
-            )
-            st.caption(
-                "Este historial no se sobrescribe: cada ingreso agrega una fila nueva, "
-                "para mostrar la evolución completa del lote desde el día 1."
-            )
+            if es_supervisor and _lote_abierto(lote_hist):
+                st.divider()
+                st.subheader("Corrección excepcional o anulación")
+                opciones = [i for i in df_lote.index if str(df_lote.loc[i].get("tipo_registro", "Ingreso progresivo")) != "Cierre de armado"]
+                if opciones:
+                    idx = st.selectbox("Registro", opciones, format_func=lambda i: f"{df_lote.loc[i].get('id_registro', i)} | {df_lote.loc[i, 'fecha']} | {df_lote.loc[i].get('estado_registro', 'Activo')}")
+                    original = df_lote.loc[idx].copy()
+                    accion = st.radio("Acción excepcional", ["Corregir", "Anular"], horizontal=True)
+                    motivo = st.text_area("Motivo obligatorio", key="motivo_cambio_m1")
+                    if accion == "Corregir":
+                        edits = {}
+                        cols = st.columns(3)
+                        for col, codigo in zip(cols, INSUMOS_ARMADO_F1):
+                            edits[codigo] = col.number_input(f"{codigo} corregido (t)", 0.0, value=float(original.get(f"{codigo}_ton", 0.0)), step=0.1)
+                        micro_edit = st.number_input("Microorganismos corregidos (L)", 0.0, value=float(original.get("microorganismos_L", 0.0) or 0.0), step=0.1)
+                        if st.button("Guardar corrección", type="primary"):
+                            if not motivo.strip():
+                                st.error("La corrección requiere un motivo.")
+                            elif sum(edits.values()) == 0 and micro_edit == 0:
+                                st.error("El registro corregido debe conservar alguna cantidad.")
+                            else:
+                                anterior = {c: original.get(c) for c in ["RO_ton", "ROD_ton", "CA_ton", "microorganismos_L"]}
+                                total = sum(edits.values())
+                                for c in INSUMOS_REF:
+                                    df_lote.loc[idx, f"{c}_ton"] = edits.get(c, 0.0)
+                                    df_lote.loc[idx, f"{c}_%mezcla"] = edits.get(c, 0.0) / total * 100 if total else 0
+                                df_lote.loc[idx, "microorganismos_L"] = micro_edit
+                                st.session_state["historial_cambios_m1"].append({"lote": lote_hist, "registro": original.get("id_registro", idx), "fecha_cambio": date.today(), "usuario": "Supervisor", "accion": "Corrección", "motivo": motivo, "valor_anterior": str(anterior), "valor_nuevo": str({**edits, "microorganismos_L": micro_edit})})
+                                st.session_state.lotes[lote_hist] = recalcular_acumulados_lote(df_lote)
+                                st.success("Corrección guardada y acumulados posteriores recalculados.")
+                                st.rerun()
+                    else:
+                        if str(original.get("estado_registro", "Activo")) == "Anulado":
+                            st.warning("Este registro ya se encuentra anulado.")
+                        elif st.button("Confirmar anulación"):
+                            if not motivo.strip():
+                                st.error("La anulación requiere un motivo.")
+                            else:
+                                df_lote.loc[idx, "estado_registro"] = "Anulado"
+                                df_lote.loc[idx, "motivo_anulacion"] = motivo
+                                st.session_state["historial_cambios_m1"].append({"lote": lote_hist, "registro": original.get("id_registro", idx), "fecha_cambio": date.today(), "usuario": "Supervisor", "accion": "Anulación", "motivo": motivo, "valor_anterior": str(original.to_dict()), "valor_nuevo": "Registro anulado"})
+                                st.session_state.lotes[lote_hist] = recalcular_acumulados_lote(df_lote)
+                                st.success("Registro anulado. Se conserva en el historial y ya no participa en los cálculos.")
+                                st.rerun()
 
-            st.divider()
-            with st.expander("Corregir o eliminar un ingreso"):
-                st.caption(
-                    "Selecciona la fecha del ingreso que quieres corregir. Al guardar o eliminar, "
-                    "los acumulados del lote se recalculan automáticamente."
-                )
-                fechas_disponibles = df_lote["fecha"].tolist()
-                fecha_a_editar = st.selectbox(
-                    "Fecha del ingreso",
-                    fechas_disponibles,
-                    format_func=lambda f: f.strftime("%d/%m/%Y") if hasattr(f, "strftime") else str(f),
-                    key="m1_fecha_editar",
-                )
+            cambios = [x for x in st.session_state["historial_cambios_m1"] if x["lote"] == lote_hist]
+            if cambios:
+                with st.expander("Ver trazabilidad de cambios"):
+                    st.dataframe(pd.DataFrame(cambios), use_container_width=True, hide_index=True)
 
-                fila_original = df_lote[df_lote["fecha"] == fecha_a_editar].iloc[0]
-                idx_original = df_lote[df_lote["fecha"] == fecha_a_editar].index[0]
+    with tab_cierre:
+        if not es_supervisor:
+            st.info("Esta acción corresponde al Supervisor.")
+        else:
+            abiertos = [c for c in st.session_state.lotes if _lote_abierto(c)]
+            if not abiertos:
+                st.info("No hay lotes pendientes de cierre.")
+            else:
+                lote_cierre = st.selectbox("Lote en armado", abiertos, key="lote_cierre_m1")
+                df_cierre = st.session_state.lotes[lote_cierre]
+                masa_b, hum_b, c_b, n_b, cn_b, micro_b = _resumen_tecnico(df_cierre)
+                agua_b = masa_b * hum_b / 100
+                hmin_l = float(df_cierre.iloc[0].get("hum_min_lote", hum_min))
+                hmax_l = float(df_cierre.iloc[0].get("hum_max_lote", hum_max))
+                cnmin_l = float(df_cierre.iloc[0].get("cn_min_lote", cn_min))
+                cnmax_l = float(df_cierre.iloc[0].get("cn_max_lote", cn_max))
+                ld_min_kg, ld_max_kg, factor = calcular_intervalo_lodo(masa_b, agua_b, c_b, n_b, hmin_l, hmax_l, cnmin_l, cnmax_l)
+                r1, r2, r3 = st.columns(3)
+                r1.metric("Masa acumulada antes del lodo", f"{(masa_b + micro_b * DENSIDAD_MICROORGANISMOS_KG_L) / 1000:.2f} t")
+                r2.metric("Humedad actual", f"{hum_b:.1f} %")
+                r3.metric("C/N actual", f"{cn_b:.1f} : 1")
+                if ld_min_kg is None:
+                    st.error(factor)
+                    intervalo_valido = False
+                else:
+                    max_txt = "sin límite superior calculable" if math.isinf(ld_max_kg) else f"{ld_max_kg / 1000:.2f} t"
+                    st.success(f"Intervalo admisible de lodo: **{ld_min_kg / 1000:.2f} t a {max_txt}**. Factor limitante: **{factor}**.")
+                    intervalo_valido = True
 
-                st.write("Valores actuales de este ingreso:")
-                columnas_vista = ["operador"] + [f"{c}_ton" for c in INSUMOS_REF]
-                if "microorganismos_L" in fila_original.index:
-                    columnas_vista.append("microorganismos_L")
-                st.dataframe(
-                    fila_original[columnas_vista].to_frame().T,
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-                st.write("Nuevos valores (déjalos igual si solo vas a eliminar):")
-                col_op_e, col_resto_e = st.columns([1, 2])
-                with col_op_e:
-                    operador_edit = st.text_input(
-                        "Operador", value=str(fila_original["operador"]), key="m1_editar_operador"
-                    )
-
-                cols_edit = st.columns(len(INSUMOS_REF))
-                cantidades_edit_ton = {}
-                for col, (codigo, ref) in zip(cols_edit, INSUMOS_REF.items()):
-                    with col:
-                        cantidades_edit_ton[codigo] = st.number_input(
-                            f"{ref['nombre']} ({codigo})",
-                            min_value=0.0,
-                            step=0.1,
-                            format="%.2f",
-                            value=float(fila_original[f"{codigo}_ton"]),
-                            key=f"m1_editar_{codigo}",
-                        )
-
-                microorganismos_edit_L = st.number_input(
-                    "Microorganismos benéficos aplicados (litros)",
-                    min_value=0.0,
-                    step=0.1,
-                    format="%.2f",
-                    value=float(fila_original.get("microorganismos_L", 0.0) or 0.0),
-                    key="m1_editar_microorganismos_L",
-                )
-
-                col_guardar, col_eliminar = st.columns(2)
-
-                with col_guardar:
-                    if st.button("Guardar cambios", type="primary", key="m1_btn_guardar_edicion"):
-                        total_edit = sum(cantidades_edit_ton.values())
-                        if not operador_edit:
-                            st.error("Ingresa el nombre del operador.")
-                        elif total_edit == 0:
-                            st.error("Ingresa al menos una cantidad mayor a 0.")
-                        else:
-                            cantidades_kg_edit = {c: t * 1000 for c, t in cantidades_edit_ton.items()}
-                            masa_e, humedad_e, c_e, n_e, cn_e = calcular_mezcla(cantidades_kg_edit)
-
-                            df_lote.loc[idx_original, "operador"] = operador_edit
-                            for c in INSUMOS_REF:
-                                df_lote.loc[idx_original, f"{c}_ton"] = round(cantidades_edit_ton[c], 2)
-                                df_lote.loc[idx_original, f"{c}_%mezcla"] = (
-                                    round((cantidades_edit_ton[c] / total_edit) * 100, 1) if total_edit else 0
-                                )
-                            df_lote.loc[idx_original, "microorganismos_L"] = round(microorganismos_edit_L, 2)
-                            df_lote.loc[idx_original, "masa_total_ton"] = round(masa_e / 1000, 2)
-                            df_lote.loc[idx_original, "humedad_%"] = round(humedad_e, 1)
-                            df_lote.loc[idx_original, "relacion_cn"] = round(cn_e, 1) if cn_e != float("inf") else None
-                            df_lote.loc[idx_original, "carbono_total_kg"] = round(c_e, 2)
-                            df_lote.loc[idx_original, "nitrogeno_total_kg"] = round(n_e, 2)
-
-                            st.session_state.lotes[lote_seleccionado] = recalcular_acumulados_lote(df_lote)
-                            st.success(
-                                f"Ingreso del {fecha_a_editar.strftime('%d/%m/%Y')} actualizado. "
-                                "Los acumulados del lote se recalcularon."
-                            )
-                            st.rerun()
-
-                with col_eliminar:
-                    if st.button("Eliminar este ingreso", key="m1_btn_eliminar_ingreso"):
-                        df_restante = df_lote.drop(index=idx_original).reset_index(drop=True)
-                        if df_restante.empty:
-                            del st.session_state.lotes[lote_seleccionado]
-                            st.success(
-                                f"Se eliminó el único ingreso del lote {lote_seleccionado}. "
-                                "El lote ya no aparece en la lista."
-                            )
-                        else:
-                            st.session_state.lotes[lote_seleccionado] = recalcular_acumulados_lote(df_restante)
-                            st.success(
-                                f"Ingreso del {fecha_a_editar.strftime('%d/%m/%Y')} eliminado. "
-                                "Los acumulados del lote se recalcularon."
-                            )
+                fecha_cierre = st.date_input("Fecha de cierre del armado", date.today(), key="fecha_cierre_m1")
+                ld_real_t = st.number_input("Cantidad real de lodo a incorporar (t)", min_value=0.0, step=0.1, format="%.2f")
+                obs = st.text_area("Observación o justificación", key="obs_cierre_m1")
+                cantidades_final = {c: 0.0 for c in INSUMOS_REF}
+                activos = df_cierre[df_cierre.get("estado_registro", pd.Series("Activo", index=df_cierre.index)).fillna("Activo") != "Anulado"]
+                for c in INSUMOS_REF:
+                    if f"{c}_ton" in activos:
+                        cantidades_final[c] = float(activos[f"{c}_ton"].fillna(0).sum()) * 1000
+                cantidades_final["LD"] += ld_real_t * 1000
+                masa_f, hum_f, c_f, n_f, cn_f = calcular_mezcla(cantidades_final)
+                fuera = (not intervalo_valido) or ld_real_t * 1000 < (ld_min_kg or 0) - 1e-6 or (ld_max_kg is not None and not math.isinf(ld_max_kg) and ld_real_t * 1000 > ld_max_kg + 1e-6)
+                f1, f2, f3 = st.columns(3)
+                f1.metric("Masa final proyectada", f"{(masa_f + micro_b * DENSIDAD_MICROORGANISMOS_KG_L) / 1000:.2f} t")
+                f2.metric("Humedad final", f"{hum_f:.1f} %")
+                f3.metric("C/N final", f"{cn_f:.1f} : 1")
+                if fuera:
+                    st.warning("La cantidad indicada está fuera del intervalo admisible. La justificación es obligatoria.")
+                confirmar_cierre = st.checkbox("Confirmo la cantidad real de lodo y deseo finalizar el armado.", key="confirmar_cierre_m1")
+                if st.button("Incorporar lodo y finalizar armado", type="primary", disabled=not confirmar_cierre):
+                    if fuera and not obs.strip():
+                        st.error("Debes registrar una justificación para cerrar fuera del intervalo admisible.")
+                    else:
+                        fila_cierre = {"id_registro": f"{lote_cierre}-CIERRE", "tipo_registro": "Cierre de armado", "fecha": fecha_cierre, "operador": "Supervisor", "estado_registro": "Activo", "motivo_anulacion": "", "observacion": obs, **{f"{c}_ton": (ld_real_t if c == "LD" else 0.0) for c in INSUMOS_REF}, **{f"{c}_%mezcla": 0.0 for c in INSUMOS_REF}, "microorganismos_L": 0.0, "masa_total_ton": ld_real_t, "humedad_%": INSUMOS_REF["LD"]["humedad"], "relacion_cn": INSUMOS_REF["LD"]["carbono"] / INSUMOS_REF["LD"]["nitrogeno"], "masa_acumulada_ton": None, "humedad_acumulada_%": None, "cn_acumulado": None, "carbono_total_kg": 0.0, "nitrogeno_total_kg": 0.0, "hum_min_lote": hmin_l, "hum_max_lote": hmax_l, "cn_min_lote": cnmin_l, "cn_max_lote": cnmax_l}
+                        actualizado = pd.concat([df_cierre, pd.DataFrame([fila_cierre])], ignore_index=True)
+                        st.session_state.lotes[lote_cierre] = recalcular_acumulados_lote(actualizado)
+                        st.session_state["cierres_armado_m1"][lote_cierre] = {"fecha": fecha_cierre, "intervalo_min_t": None if ld_min_kg is None else ld_min_kg / 1000, "intervalo_max_t": None if ld_max_kg is None or math.isinf(ld_max_kg) else ld_max_kg / 1000, "lodo_real_t": ld_real_t, "factor_limitante": factor, "justificacion": obs, "humedad_final": hum_f, "cn_final": cn_f}
+                        st.success(f"Armado del lote {lote_cierre} finalizado.")
                         st.rerun()
+
+            if st.session_state["cierres_armado_m1"]:
+                st.divider()
+                st.subheader("Resumen de armados finalizados")
+                lote_finalizado = st.selectbox(
+                    "Consultar cierre", list(st.session_state["cierres_armado_m1"]),
+                    key="consulta_cierre_m1"
+                )
+                cierre = st.session_state["cierres_armado_m1"][lote_finalizado]
+                df_final = st.session_state.lotes[lote_finalizado]
+                acumulado_final = df_final.iloc[-1]
+                z1, z2, z3, z4 = st.columns(4)
+                z1.metric("Masa total real", f"{float(acumulado_final['masa_acumulada_ton']):.2f} t")
+                z2.metric("Lodo incorporado", f"{cierre['lodo_real_t']:.2f} t")
+                z3.metric("Humedad final", f"{cierre['humedad_final']:.1f} %")
+                z4.metric("C/N final", f"{cierre['cn_final']:.1f} : 1")
+                minimo_txt = "No calculable" if cierre["intervalo_min_t"] is None else f"{cierre['intervalo_min_t']:.2f} t"
+                maximo_txt = "Sin límite superior" if cierre["intervalo_max_t"] is None else f"{cierre['intervalo_max_t']:.2f} t"
+                st.write(f"**Intervalo admisible registrado:** {minimo_txt} a {maximo_txt}")
+                st.write(f"**Factor limitante:** {cierre['factor_limitante']}")
+                st.write(f"**Observación/justificación:** {cierre['justificacion'] or 'No requerida'}")
+
+    with tab_simulador:
+        if not es_supervisor:
+            st.info("El simulador está disponible únicamente para el Supervisor.")
+        elif not st.session_state.lotes:
+            st.info("Primero registra un lote.")
+        else:
+            lote_sim = st.selectbox("Lote para simular", list(st.session_state.lotes), key="lote_sim_m1")
+            insumo_sim = st.selectbox("Insumo hipotético", ["RO", "ROD", "CA", "LD", "AS"], format_func=lambda c: f"{INSUMOS_REF[c]['nombre']} ({c})")
+            cantidad_sim_t = st.number_input("Cantidad hipotética (t)", min_value=0.0, step=0.1)
+            df_sim = st.session_state.lotes[lote_sim]
+            activos = df_sim[df_sim.get("estado_registro", pd.Series("Activo", index=df_sim.index)).fillna("Activo") != "Anulado"]
+            cantidades_sim = {c: (float(activos[f"{c}_ton"].fillna(0).sum()) * 1000 if f"{c}_ton" in activos else 0.0) for c in INSUMOS_REF}
+            cantidades_sim[insumo_sim] += cantidad_sim_t * 1000
+            masa_s, hum_s, c_s, n_s, cn_s = calcular_mezcla(cantidades_sim)
+            s1, s2, s3 = st.columns(3)
+            s1.metric("Masa hipotética", f"{masa_s / 1000:.2f} t")
+            s2.metric("Humedad proyectada", f"{hum_s:.1f} %")
+            s3.metric("C/N proyectado", f"{cn_s:.1f} : 1")
+            st.caption("La simulación no modifica ni se guarda en el lote real.")
     # =========================================================
     # MÓDULO 1.1 — DIMENSIONAMIENTO DE PILAS
     # Visible únicamente dentro del Módulo 1
