@@ -80,10 +80,15 @@ st.markdown(
         background-color: {COLOR_FONDO_SUAVE};
     }}
 
-    .block-container {{
-        padding-top: 1.6rem !important;
+    /* Mantiene el contenido por debajo de la barra superior de Streamlit
+       y con márgenes uniformes en pantallas de escritorio. */
+    [data-testid="stAppViewContainer"] .block-container {{
+        padding-top: 4.5rem !important;
         padding-bottom: 2rem !important;
+        padding-left: 2.5rem !important;
+        padding-right: 2.5rem !important;
         max-width: 1500px !important;
+        margin: 0 auto !important;
     }}
 
     [data-testid="stSidebar"] {{
@@ -306,6 +311,12 @@ st.markdown(
     @media (max-width: 768px) {{
         .stTabs [data-baseweb="tab"] {{ padding: 8px 10px; font-size: 13px; }}
         div[data-testid="stMetric"] {{ padding: 10px 12px; }}
+
+        [data-testid="stAppViewContainer"] .block-container {{
+            padding-top: 4rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }}
     }}
 
     </style>
