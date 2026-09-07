@@ -109,7 +109,17 @@ st.markdown(
     h2 {{ font-size: 20px !important; font-weight: 600 !important; }}
     h3 {{ font-size: 16px !important; font-weight: 600 !important; }}
     p, span, label, div {{ font-size: 14px; }}
-    .stCaption, small {{ font-size: 12px !important; }}
+    .stCaption, small,
+    [data-testid="stCaptionContainer"],
+    [data-testid="stCaptionContainer"] p {{
+        font-size: 12px !important;
+        line-height: 1.35 !important;
+    }}
+    [data-testid="stExpanderDetails"] p,
+    [data-testid="stExpanderDetails"] li {{
+        font-size: 12.5px !important;
+        line-height: 1.4 !important;
+    }}
 
     /* ---------------- NAVEGACIÓN ENTRE MÓDULOS ---------------- */
 
@@ -362,11 +372,11 @@ if not st.session_state["ingreso_plataforma"]:
 #    carbono/nitrógeno/C-N de literatura)
 # ---------------------------------------------------------------
 INSUMOS_REF = {
-    "RO":  {"nombre": "Residuos orgánicos",              "humedad": 70.0, "carbono": 48.0, "nitrogeno": 3.20, "cn": 15},
-    "LD":  {"nombre": "Lodo deshidratado de PTAR",        "humedad": 55.0, "carbono": 32.0, "nitrogeno": 3.50, "cn": 9},
-    "AS":  {"nombre": "Aserrín",                          "humedad": 20.0, "carbono": 50.0, "nitrogeno": 0.10, "cn": 500},
-    "CA":  {"nombre": "Cartón",                           "humedad": 5.0,  "carbono": 45.0, "nitrogeno": 0.11, "cn": 400},
-    "ROD": {"nombre": "Residuos orgánicos deshidratados", "humedad": 6.52, "carbono": 48.3, "nitrogeno": 3.26, "cn": 15},
+    "RO":  {"nombre": "Residuos orgánicos",              "humedad": 70.0, "carbono": 48.0, "nitrogeno": 3.20, "cn": 15,  "densidad": 650.0},
+    "LD":  {"nombre": "Lodo deshidratado de PTAR",        "humedad": 55.0, "carbono": 32.0, "nitrogeno": 3.50, "cn": 9,   "densidad": 900.0},
+    "AS":  {"nombre": "Aserrín",                          "humedad": 20.0, "carbono": 50.0, "nitrogeno": 0.10, "cn": 500, "densidad": 250.0},
+    "CA":  {"nombre": "Cartón",                           "humedad": 5.0,  "carbono": 45.0, "nitrogeno": 0.11, "cn": 400, "densidad": 100.0},
+    "ROD": {"nombre": "Residuos orgánicos deshidratados", "humedad": 6.52, "carbono": 48.3, "nitrogeno": 3.26, "cn": 15,  "densidad": 550.0},
 }
 
 # Densidad referencial para convertir los microorganismos de litros a masa.
@@ -690,6 +700,10 @@ if "historial_config_admin" not in st.session_state:
     st.session_state["historial_config_admin"] = []
 
 config_admin = st.session_state["config_admin"]
+# Compatibilidad con sesiones iniciadas antes de incorporar la densidad a las fichas.
+for _codigo_cfg, _ref_cfg in INSUMOS_REF.items():
+    config_admin["insumos"].setdefault(_codigo_cfg, copy.deepcopy(_ref_cfg))
+    config_admin["insumos"][_codigo_cfg].setdefault("densidad", _ref_cfg["densidad"])
 hum_min = float(config_admin["hum_min"])
 hum_max = float(config_admin["hum_max"])
 cn_min = float(config_admin["cn_min"])
@@ -710,16 +724,23 @@ rol_actual = st.sidebar.selectbox(
 st.sidebar.caption(f"Sesión demostrativa: **{rol_actual}**")
 st.sidebar.divider()
 
-opciones_menu = [
-    "Inicio",
-    "Módulo 1 — Armado progresivo",
-    "Módulo 2 — Estructurante",
-    "Módulo 3 — Seguimiento",
-    "Módulo 4 — Control de lotes",
-    "Módulo 5 — Laboratorio",
-]
 if rol_actual == "Administradora":
-    opciones_menu.append("Administración")
+    # La Administradora gobierna la configuración; no reemplaza ni comparte
+    # la vista operativa del Supervisor de Operaciones.
+    opciones_menu = ["Inicio", "Administración"]
+else:
+    opciones_menu = [
+        "Inicio",
+        "Módulo 1 — Armado progresivo",
+        "Módulo 2 — Estructurante",
+        "Módulo 3 — Seguimiento",
+        "Módulo 4 — Control de lotes",
+        "Módulo 5 — Laboratorio",
+    ]
+
+# Al cambiar de rol, evita conservar una página que ese perfil ya no puede ver.
+if st.session_state.get("pagina_actual") not in opciones_menu:
+    st.session_state["pagina_actual"] = opciones_menu[0]
 
 pagina = st.sidebar.radio("Navegación", opciones_menu, key="pagina_actual")
 st.sidebar.divider()
@@ -734,7 +755,21 @@ else:
 # ---------------------------------------------------------------
 mostrar_encabezado_app()
 
-if pagina == "Inicio" and st.session_state.lotes:
+if pagina == "Inicio" and rol_actual == "Administradora":
+    encabezado("Inicio — Administración")
+    st.info(
+        "Perfil de configuración. Desde Administración puedes gestionar los parámetros "
+        "referenciales utilizados por los cálculos sin ingresar a los módulos operativos."
+    )
+    ad1, ad2, ad3 = st.columns(3)
+    ad1.metric("Versión de configuración", int(config_admin.get("version", 1)))
+    ad2.metric("Insumos configurados", len(INSUMOS_REF))
+    ad3.metric("Responsables habilitados", len([x for x in OPERADORES if x != "Otro"]))
+    st.subheader("Configuración vigente")
+    st.write(f"Humedad de formulación: **{hum_min:.0f}–{hum_max:.0f} %**")
+    st.write(f"Relación C/N de formulación: **{cn_min:.0f}–{cn_max:.0f}**")
+    st.write(f"Densidad de microorganismos: **{DENSIDAD_MICROORGANISMOS_KG_L:.2f} kg/L**")
+elif pagina == "Inicio" and st.session_state.lotes:
     _totales_insumo_top = {codigo: 0.0 for codigo in INSUMOS_REF}
     for _df_lote_top in st.session_state.lotes.values():
         for _codigo_top in INSUMOS_REF:
@@ -797,14 +832,12 @@ if pagina == "Módulo 1 — Armado progresivo":
     encabezado("Módulo 1 — Armado progresivo del lote")
     st.caption("Registra el armado real, calcula sus acumulados y determina cuánto lodo puede incorporarse al cierre.")
 
-    es_supervisor = rol_actual in ["Supervisor de Operaciones", "Administradora"]
+    es_supervisor = rol_actual == "Supervisor de Operaciones"
     es_sponsor = rol_actual == "Sponsor"
     if es_sponsor:
         st.info("Vista Sponsor: consulta de solo lectura. No puede ingresar, corregir ni anular registros.")
     elif rol_actual == "Supervisor de Operaciones":
         st.info("Vista Supervisor de Operaciones: registro, corrección, anulación, simulación y cierre del armado.")
-    else:
-        st.info("Vista Administradora: supervisión integral y correcciones administrativas.")
 
     tab_nuevo, tab_historial, tab_cierre, tab_simulador, tab_dimensionamiento = st.tabs([
         "Ingreso progresivo", "Historial y trazabilidad", "Capacidad de lodo y cierre",
@@ -851,6 +884,29 @@ if pagina == "Módulo 1 — Armado progresivo":
         if codigo_lote in st.session_state.lotes and not _lote_abierto(codigo_lote):
             st.error("El armado de este lote ya está cerrado y no admite nuevos ingresos.")
         elif codigo_lote:
+            registro_mismo_dia = False
+            if codigo_lote in st.session_state.lotes:
+                df_existente_dia = st.session_state.lotes[codigo_lote]
+                fechas_existentes = pd.to_datetime(df_existente_dia["fecha"]).dt.date
+                tipos_existentes = df_existente_dia.get(
+                    "tipo_registro", pd.Series("Ingreso progresivo", index=df_existente_dia.index)
+                ).fillna("Ingreso progresivo")
+                estados_existentes = df_existente_dia.get(
+                    "estado_registro", pd.Series("Activo", index=df_existente_dia.index)
+                ).fillna("Activo")
+                registro_mismo_dia = bool((
+                    (fechas_existentes == fecha_ingreso)
+                    & (tipos_existentes == "Ingreso progresivo")
+                    & (estados_existentes != "Anulado")
+                ).any())
+
+            if registro_mismo_dia:
+                st.warning(
+                    f"El lote {codigo_lote} ya tiene un ingreso activo registrado el "
+                    f"{fecha_ingreso.strftime('%d/%m/%Y')}. Solo se permite un ingreso por día. "
+                    "Si el registro es incorrecto, debe corregirse o anularse desde el historial."
+                )
+
             st.subheader("Materiales incorporados hoy")
             st.caption("El lodo todavía no se registra aquí; se incorpora únicamente al finalizar el armado.")
             cantidades_ton = {}
@@ -880,7 +936,10 @@ if pagina == "Módulo 1 — Armado progresivo":
                 p4.metric("Relación C/N", f"{cn:.1f} : 1")
 
             confirmar = st.checkbox("Confirmo que las cantidades mostradas corresponden al ingreso real.", key="confirmar_ingreso_m1")
-            if st.button("Guardar ingreso confirmado", type="primary", disabled=(not confirmar or es_sponsor)):
+            if st.button(
+                "Guardar ingreso confirmado", type="primary",
+                disabled=(not confirmar or es_sponsor or registro_mismo_dia)
+            ):
                 if not operador:
                     st.error("Ingresa el responsable del registro.")
                 elif codigo_lote in st.session_state.lotes and not _lote_abierto(codigo_lote):
@@ -889,6 +948,8 @@ if pagina == "Módulo 1 — Armado progresivo":
                     st.error("Solo el supervisor puede crear un lote.")
                 elif codigo_lote not in st.session_state.lotes and any(c.startswith(f"LT-{fecha_ingreso.year}-{int(numero_lote):03d}") for c in st.session_state.lotes):
                     st.error("El código del lote ya existe.")
+                elif registro_mismo_dia:
+                    st.error("Ya existe un ingreso activo para este lote en la fecha seleccionada.")
                 elif sum(cantidades_ton.values()) == 0 and microorganismos_L == 0:
                     st.error("Ingresa al menos una cantidad mayor a cero.")
                 else:
@@ -910,6 +971,53 @@ if pagina == "Módulo 1 — Armado progresivo":
                     combinado = pd.concat([actual, nuevo], ignore_index=True) if actual is not None else nuevo
                     st.session_state.lotes[codigo_lote] = recalcular_acumulados_lote(combinado)
                     st.success(f"Ingreso guardado en {codigo_lote}. Fecha de inicio: {st.session_state.lotes[codigo_lote]['fecha'].min().strftime('%d/%m/%Y')}.")
+
+            # Resultado acumulado siempre visible para el lote seleccionado.
+            if codigo_lote in st.session_state.lotes:
+                df_acumulado = st.session_state.lotes[codigo_lote]
+                estados_acum = df_acumulado.get(
+                    "estado_registro", pd.Series("Activo", index=df_acumulado.index)
+                ).fillna("Activo")
+                tipos_acum = df_acumulado.get(
+                    "tipo_registro", pd.Series("Ingreso progresivo", index=df_acumulado.index)
+                ).fillna("Ingreso progresivo")
+                df_evolucion = df_acumulado[
+                    (estados_acum != "Anulado") & (tipos_acum == "Ingreso progresivo")
+                ].sort_values("fecha", kind="stable")
+
+                if not df_evolucion.empty:
+                    st.divider()
+                    st.subheader(f"Acumulado actual del lote {codigo_lote}")
+                    ultima = df_evolucion.iloc[-1]
+                    anterior = df_evolucion.iloc[-2] if len(df_evolucion) > 1 else None
+                    delta_masa = None if anterior is None else f"{ultima['masa_acumulada_ton'] - anterior['masa_acumulada_ton']:+.2f} t"
+                    delta_hum = None if anterior is None else f"{ultima['humedad_acumulada_%'] - anterior['humedad_acumulada_%']:+.1f} pp"
+                    delta_cn = None if anterior is None else f"{ultima['cn_acumulado'] - anterior['cn_acumulado']:+.1f}"
+                    ac1, ac2, ac3 = st.columns(3)
+                    ac1.metric("Masa acumulada", f"{ultima['masa_acumulada_ton']:.2f} t", delta_masa)
+                    ac2.metric("Humedad acumulada", f"{ultima['humedad_acumulada_%']:.1f} %", delta_hum)
+                    ac3.metric("C/N acumulado", f"{ultima['cn_acumulado']:.1f} : 1", delta_cn)
+                    st.caption(
+                        "La variación compara el acumulado actual con el registro diario anterior. "
+                        "Los registros anulados no participan en el cálculo."
+                    )
+
+                    evolucion_vista = pd.DataFrame({
+                        "Fecha": pd.to_datetime(df_evolucion["fecha"]).dt.strftime("%d/%m/%Y"),
+                        "RO (t)": df_evolucion.get("RO_ton", 0),
+                        "ROD (t)": df_evolucion.get("ROD_ton", 0),
+                        "Cartón (t)": df_evolucion.get("CA_ton", 0),
+                        "Microorganismos (L)": df_evolucion.get("microorganismos_L", 0),
+                        "Masa acumulada (t)": df_evolucion["masa_acumulada_ton"],
+                        "Humedad acumulada (%)": df_evolucion["humedad_acumulada_%"],
+                        "C/N acumulado": df_evolucion["cn_acumulado"],
+                    })
+                    st.dataframe(evolucion_vista, use_container_width=True, hide_index=True)
+                    if len(evolucion_vista) > 1:
+                        st.caption("Evolución diaria de humedad y relación C/N acumuladas")
+                        st.line_chart(
+                            evolucion_vista.set_index("Fecha")[["Humedad acumulada (%)", "C/N acumulado"]]
+                        )
 
     with tab_historial:
         if not st.session_state.lotes:
@@ -1110,13 +1218,7 @@ if pagina == "Módulo 1 — Armado progresivo":
             )
 
         # --- Densidades de referencia (kg/m3) — tabla de insumos ---
-        DENSIDADES = {
-            "RO": 650,    # Residuos orgánicos
-            "LD": 900,    # Lodo deshidratado de PTAR
-            "AS": 250,    # Aserrín
-            "CA": 100,    # Cartón
-            "ROD": 550,   # Residuos orgánicos deshidratados
-        }
+        DENSIDADES = {codigo: float(ref["densidad"]) for codigo, ref in INSUMOS_REF.items()}
 
         st.subheader("1. Parámetros de la pila (editables)")
         st.caption("Este es el molde fijo: se mantiene constante mientras se arma la pila.")
@@ -2361,10 +2463,14 @@ if pagina == "Administración" and rol_actual == "Administradora":
     )
     ref_admin = INSUMOS_REF[codigo_admin]
     with st.form("form_ficha_insumo"):
-        fi1, fi2, fi3 = st.columns(3)
+        fi1, fi2, fi3, fi4 = st.columns(4)
         ficha_h = fi1.number_input("Humedad (%)", 0.0, 100.0, float(ref_admin["humedad"]), 0.1)
         ficha_c = fi2.number_input("Carbono (%)", 0.0, 100.0, float(ref_admin["carbono"]), 0.1)
         ficha_n = fi3.number_input("Nitrógeno (%)", 0.0, 100.0, float(ref_admin["nitrogeno"]), 0.01, format="%.2f")
+        ficha_densidad = fi4.number_input(
+            "Densidad aparente (kg/m³)", min_value=0.01,
+            value=float(ref_admin["densidad"]), step=10.0
+        )
         cn_calculado_admin = ficha_c / ficha_n if ficha_n > 0 else None
         st.info(f"C/N calculado automáticamente: {cn_calculado_admin:.1f} : 1" if cn_calculado_admin else "C/N no calculable sin nitrógeno.")
         motivo_ficha = st.text_area("Motivo de actualización de la ficha")
@@ -2382,6 +2488,7 @@ if pagina == "Administración" and rol_actual == "Administradora":
                 config_admin["insumos"][codigo_admin].update({
                     "humedad": ficha_h, "carbono": ficha_c,
                     "nitrogeno": ficha_n, "cn": cn_calculado_admin,
+                    "densidad": ficha_densidad,
                 })
                 config_admin["version"] = int(config_admin.get("version", 1)) + 1
                 st.session_state["historial_config_admin"].append({
