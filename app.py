@@ -82,6 +82,21 @@ st.markdown(
         border-right: 1px solid {COLOR_BORDE};
     }}
 
+    /* Barra lateral fija y logo centrado */
+    section[data-testid="stSidebar"] {{
+        position: fixed !important;
+        top: 0 !important;
+        height: 100vh !important;
+        overflow-y: auto !important;
+        z-index: 999 !important;
+    }}
+    section[data-testid="stSidebar"] img {{
+        display: block !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        max-width: 125px !important;
+    }}
+
     [data-testid="stSidebar"] h1,
     [data-testid="stSidebar"] h2,
     [data-testid="stSidebar"] h3,
@@ -713,7 +728,19 @@ DENSIDAD_MICROORGANISMOS_KG_L = float(config_admin["densidad_micro"])
 INSUMOS_REF = copy.deepcopy(config_admin["insumos"])
 OPERADORES = config_admin.get("responsables", OPERADORES)
 
-st.sidebar.markdown("## Gestión de Compostaje")
+logo_sidebar = buscar_archivo_logo()
+if logo_sidebar:
+    st.sidebar.image(logo_sidebar, width=125)
+else:
+    st.sidebar.markdown(
+        f"<div style='text-align:center; color:white; font-size:22px; font-weight:700;'>AA</div>",
+        unsafe_allow_html=True,
+    )
+st.sidebar.markdown(
+    "<div style='text-align:center; color:white; font-size:15px; font-weight:600;'>"
+    "Gestión de Compostaje</div>",
+    unsafe_allow_html=True,
+)
 st.sidebar.caption("Prototipo operativo — Sepersur")
 st.sidebar.divider()
 rol_actual = st.sidebar.selectbox(
@@ -753,7 +780,8 @@ else:
 # ---------------------------------------------------------------
 # 5. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
-mostrar_encabezado_app()
+# Se elimina el encabezado general grande para aprovechar el espacio vertical.
+# Cada pantalla comienza directamente con el título del módulo seleccionado.
 
 if pagina == "Inicio" and rol_actual == "Administradora":
     encabezado("Inicio — Administración")
@@ -871,17 +899,38 @@ if pagina == "Módulo 1 — Armado progresivo":
             fecha_ingreso = st.date_input("Fecha del ingreso", value=date.today(), key="m1_fecha")
         with c3:
             if modo == "Crear lote nuevo":
-                nums = [int(c.split("-")[-1]) for c in st.session_state.lotes if c.startswith("LT-") and c.split("-")[-1].isdigit()]
-                numero_lote = st.number_input("Numeración del lote", 1, step=1, value=max(nums) + 1 if nums else 1)
-                codigo_lote = f"LT-{fecha_ingreso.year}-{int(numero_lote):03d}"
-                st.caption(f"Código normalizado: **{codigo_lote}**")
+                numero_lote_texto = st.text_input(
+                    "Número de lote",
+                    value="",
+                    placeholder="Ejemplo: 5",
+                    help="El número lo ingresa manualmente el Supervisor de Operaciones.",
+                    key="m1_numero_lote_manual",
+                ).strip()
+                if numero_lote_texto.isdigit() and int(numero_lote_texto) > 0:
+                    numero_lote = int(numero_lote_texto)
+                    codigo_lote = f"LT-{fecha_ingreso.year}-{numero_lote:03d}"
+                    st.caption(f"Código normalizado: **{codigo_lote}**")
+                else:
+                    codigo_lote = None
+                    st.caption("Ingresa manualmente un número de lote válido mayor que 0.")
             elif lotes_abiertos:
                 codigo_lote = st.selectbox("Lote abierto", lotes_abiertos)
             else:
                 codigo_lote = None
                 st.info("No existen lotes abiertos. El supervisor debe crear uno.")
 
-        if codigo_lote in st.session_state.lotes and not _lote_abierto(codigo_lote):
+        codigo_duplicado_nuevo = (
+            modo == "Crear lote nuevo"
+            and codigo_lote is not None
+            and codigo_lote in st.session_state.lotes
+        )
+
+        if codigo_duplicado_nuevo:
+            st.error(
+                f"El código {codigo_lote} ya existe. Ingresa otro número de lote o selecciona "
+                "'Agregar a lote existente'."
+            )
+        elif codigo_lote in st.session_state.lotes and not _lote_abierto(codigo_lote):
             st.error("El armado de este lote ya está cerrado y no admite nuevos ingresos.")
         elif codigo_lote:
             registro_mismo_dia = False
@@ -901,10 +950,10 @@ if pagina == "Módulo 1 — Armado progresivo":
                 ).any())
 
             if registro_mismo_dia:
-                st.warning(
-                    f"El lote {codigo_lote} ya tiene un ingreso activo registrado el "
-                    f"{fecha_ingreso.strftime('%d/%m/%Y')}. Solo se permite un ingreso por día. "
-                    "Si el registro es incorrecto, debe corregirse o anularse desde el historial."
+                st.error(
+                    f"El día {fecha_ingreso.strftime('%d/%m/%Y')} ya fue registrado para el lote "
+                    f"{codigo_lote}. No puede haber dos registros el mismo día, a menos que se "
+                    "anule el registro anterior."
                 )
 
             st.subheader("Materiales incorporados hoy")
@@ -945,11 +994,14 @@ if pagina == "Módulo 1 — Armado progresivo":
                 elif codigo_lote in st.session_state.lotes and not _lote_abierto(codigo_lote):
                     st.error("No se puede registrar porque el armado está cerrado.")
                 elif codigo_lote not in st.session_state.lotes and not es_supervisor:
-                    st.error("Solo el supervisor puede crear un lote.")
+                    st.error("Solo el Supervisor de Operaciones puede crear un lote.")
                 elif codigo_lote not in st.session_state.lotes and any(c.startswith(f"LT-{fecha_ingreso.year}-{int(numero_lote):03d}") for c in st.session_state.lotes):
                     st.error("El código del lote ya existe.")
                 elif registro_mismo_dia:
-                    st.error("Ya existe un ingreso activo para este lote en la fecha seleccionada.")
+                    st.error(
+                        "El día ya fue registrado. No puede haber dos registros el mismo día, "
+                        "a menos que se anule el registro anterior."
+                    )
                 elif sum(cantidades_ton.values()) == 0 and microorganismos_L == 0:
                     st.error("Ingresa al menos una cantidad mayor a cero.")
                 else:
