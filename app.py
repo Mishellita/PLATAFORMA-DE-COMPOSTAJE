@@ -908,9 +908,9 @@ if pagina == "Módulo 1 — Armado progresivo":
     elif rol_actual == "Supervisor de Operaciones":
         st.info("Vista Supervisor de Operaciones: registro, corrección, anulación, simulación y cierre del armado.")
 
-    tab_nuevo, tab_historial, tab_cierre, tab_simulador, tab_dimensionamiento = st.tabs([
+    tab_nuevo, tab_historial, tab_cierre, tab_simulador = st.tabs([
         "Ingreso progresivo", "Historial y trazabilidad", "Capacidad de lodo y cierre",
-        "¿Qué pasaría si...?", "Dimensionamiento de pilas",
+        "Simulador de consultas",
     ])
 
     def _lote_abierto(codigo):
