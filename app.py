@@ -8,6 +8,7 @@ import math
 import streamlit as st
 import pandas as pd
 import os
+import copy
 from datetime import date
 
 # ---------------------------------------------------------------
@@ -452,6 +453,8 @@ if "cierres_armado_m1" not in st.session_state:
     st.session_state["cierres_armado_m1"] = {}
 if "historial_cambios_m1" not in st.session_state:
     st.session_state["historial_cambios_m1"] = []
+if "validaciones_sponsor" not in st.session_state:
+    st.session_state["validaciones_sponsor"] = {}
 
 # Límites según NTP 201.207:2020 (FERTILIZANTES. Compost para uso agrícola.
 # Requisitos, 1ª Edición). Se usa como referencia técnica, aunque tu compost
@@ -672,49 +675,66 @@ def kg_requeridos_estructurante(fixed_carbono_kg, fixed_nitrogeno_kg, codigo_est
 
 
 # ---------------------------------------------------------------
-# 4. BARRA LATERAL: parámetros ajustables
+# 4. CONFIGURACIÓN Y NAVEGACIÓN POR ROL
 # ---------------------------------------------------------------
-st.sidebar.header("Parámetros de referencia")
-st.sidebar.caption("Ajustables por observación de campo (ej. altitud 3000 msnm)")
+if "config_admin" not in st.session_state:
+    st.session_state["config_admin"] = {
+        "hum_min": HUMEDAD_MIN_DEFAULT, "hum_max": HUMEDAD_MAX_DEFAULT,
+        "cn_min": CN_MIN_DEFAULT, "cn_max": CN_MAX_DEFAULT,
+        "densidad_micro": DENSIDAD_MICROORGANISMOS_KG_L,
+        "insumos": copy.deepcopy(INSUMOS_REF),
+        "responsables": OPERADORES.copy(),
+        "version": 1,
+    }
+if "historial_config_admin" not in st.session_state:
+    st.session_state["historial_config_admin"] = []
 
-hum_min = st.sidebar.number_input("Humedad mínima (%)", value=HUMEDAD_MIN_DEFAULT, step=1.0)
-hum_max = st.sidebar.number_input("Humedad máxima (%)", value=HUMEDAD_MAX_DEFAULT, step=1.0)
-cn_min = st.sidebar.number_input("Relación C/N mínima", value=CN_MIN_DEFAULT, step=1.0)
-cn_max = st.sidebar.number_input("Relación C/N máxima", value=CN_MAX_DEFAULT, step=1.0)
+config_admin = st.session_state["config_admin"]
+hum_min = float(config_admin["hum_min"])
+hum_max = float(config_admin["hum_max"])
+cn_min = float(config_admin["cn_min"])
+cn_max = float(config_admin["cn_max"])
 cn_target = (cn_min + cn_max) / 2
+DENSIDAD_MICROORGANISMOS_KG_L = float(config_admin["densidad_micro"])
+INSUMOS_REF = copy.deepcopy(config_admin["insumos"])
+OPERADORES = config_admin.get("responsables", OPERADORES)
 
+st.sidebar.markdown("## Gestión de Compostaje")
+st.sidebar.caption("Prototipo operativo — Sepersur")
 st.sidebar.divider()
-st.sidebar.caption(
-    "Rango base de literatura: 50-60% humedad para iniciar etapa mesófila. "
-    "El ajuste aquí queda registrado como adaptación en observación, no como error."
+rol_actual = st.sidebar.selectbox(
+    "Perfil activo",
+    ["Supervisor de Operaciones", "Sponsor", "Administradora"],
+    key="rol_actual_app",
 )
+st.sidebar.caption(f"Sesión demostrativa: **{rol_actual}**")
 st.sidebar.divider()
-with st.sidebar.expander("Parámetros de insumos (actualizar con caracterización real)"):
-    st.caption(
-        "Si el laboratorio entrega una nueva caracterización, ajusta aquí los valores base "
-        "para que todos los módulos recalculen automáticamente con los datos nuevos."
-    )
-    for codigo_insumo_sb in INSUMOS_REF:
-        st.markdown(f"*{INSUMOS_REF[codigo_insumo_sb]['nombre']} ({codigo_insumo_sb})*")
-        col_h, col_c, col_n = st.columns(3)
-        INSUMOS_REF[codigo_insumo_sb]["humedad"] = col_h.number_input(
-            "Humedad %", value=float(INSUMOS_REF[codigo_insumo_sb]["humedad"]),
-            min_value=0.0, max_value=100.0, step=1.0, key=f"param_hum_{codigo_insumo_sb}"
-        )
-        INSUMOS_REF[codigo_insumo_sb]["carbono"] = col_c.number_input(
-            "Carbono %", value=float(INSUMOS_REF[codigo_insumo_sb]["carbono"]),
-            min_value=0.0, max_value=100.0, step=1.0, key=f"param_c_{codigo_insumo_sb}"
-        )
-        INSUMOS_REF[codigo_insumo_sb]["nitrogeno"] = col_n.number_input(
-            "Nitrógeno %", value=float(INSUMOS_REF[codigo_insumo_sb]["nitrogeno"]),
-            min_value=0.0, max_value=100.0, step=0.01, format="%.2f", key=f"param_n_{codigo_insumo_sb}"
-        )
+
+opciones_menu = [
+    "Inicio",
+    "Módulo 1 — Armado progresivo",
+    "Módulo 2 — Estructurante",
+    "Módulo 3 — Seguimiento",
+    "Módulo 4 — Control de lotes",
+    "Módulo 5 — Laboratorio",
+]
+if rol_actual == "Administradora":
+    opciones_menu.append("Administración")
+
+pagina = st.sidebar.radio("Navegación", opciones_menu, key="pagina_actual")
+st.sidebar.divider()
+if rol_actual == "Supervisor de Operaciones":
+    st.sidebar.info("Registra y gestiona la operación de campo.")
+elif rol_actual == "Sponsor":
+    st.sidebar.info("Acceso de consulta y validación final en Laboratorio.")
+else:
+    st.sidebar.info("Gestiona parámetros, catálogos y permisos.")
 # ---------------------------------------------------------------
 # 5. NAVEGACIÓN ENTRE MÓDULOS
 # ---------------------------------------------------------------
 mostrar_encabezado_app()
 
-if st.session_state.lotes:
+if pagina == "Inicio" and st.session_state.lotes:
     _totales_insumo_top = {codigo: 0.0 for codigo in INSUMOS_REF}
     for _df_lote_top in st.session_state.lotes.values():
         for _codigo_top in INSUMOS_REF:
@@ -766,24 +786,25 @@ if st.session_state.lotes:
         _factor_emision_top = st.session_state["factor_emision_top"]
         st.metric("CO2e evitado", f"{_masa_total_top * _factor_emision_top:.2f} t")
     st.divider()
+elif pagina == "Inicio":
+    encabezado("Inicio")
+    st.info("Aún no existen lotes registrados. Selecciona un módulo en el menú lateral para comenzar.")
 
-tab_m1, tab_m2, tab_m3, tab_m4, tab_m5 = st.tabs([
-    "Módulo 1 — Formulación de Lotes",
-    "Módulo 2 — Capacidad de Estructurante",
-    "Módulo 3 — Seguimiento de Lotes",
-    "Módulo 4 — Control de Lotes",
-    "Módulo 5 — Análisis de laboratorio",
-])
 # =================================================================
 # MÓDULO 1 — FORMULACIÓN DE LOTES
 # =================================================================
-with tab_m1:
+if pagina == "Módulo 1 — Armado progresivo":
     encabezado("Módulo 1 — Armado progresivo del lote")
     st.caption("Registra el armado real, calcula sus acumulados y determina cuánto lodo puede incorporarse al cierre.")
 
-    rol_m1 = st.radio("Vista activa", ["Operador", "Supervisor"], horizontal=True, key="rol_m1")
-    es_supervisor = rol_m1 == "Supervisor"
-    st.caption(f"Permisos activos: {rol_m1}. " + ("Puede crear, corregir, anular, simular y cerrar lotes." if es_supervisor else "Puede registrar ingresos en lotes abiertos y consultar el historial."))
+    es_supervisor = rol_actual in ["Supervisor de Operaciones", "Administradora"]
+    es_sponsor = rol_actual == "Sponsor"
+    if es_sponsor:
+        st.info("Vista Sponsor: consulta de solo lectura. No puede ingresar, corregir ni anular registros.")
+    elif rol_actual == "Supervisor de Operaciones":
+        st.info("Vista Supervisor de Operaciones: registro, corrección, anulación, simulación y cierre del armado.")
+    else:
+        st.info("Vista Administradora: supervisión integral y correcciones administrativas.")
 
     tab_nuevo, tab_historial, tab_cierre, tab_simulador, tab_dimensionamiento = st.tabs([
         "Ingreso progresivo", "Historial y trazabilidad", "Capacidad de lodo y cierre",
@@ -859,7 +880,7 @@ with tab_m1:
                 p4.metric("Relación C/N", f"{cn:.1f} : 1")
 
             confirmar = st.checkbox("Confirmo que las cantidades mostradas corresponden al ingreso real.", key="confirmar_ingreso_m1")
-            if st.button("Guardar ingreso confirmado", type="primary", disabled=not confirmar):
+            if st.button("Guardar ingreso confirmado", type="primary", disabled=(not confirmar or es_sponsor)):
                 if not operador:
                     st.error("Ingresa el responsable del registro.")
                 elif codigo_lote in st.session_state.lotes and not _lote_abierto(codigo_lote):
@@ -929,7 +950,7 @@ with tab_m1:
                                     df_lote.loc[idx, f"{c}_ton"] = edits.get(c, 0.0)
                                     df_lote.loc[idx, f"{c}_%mezcla"] = edits.get(c, 0.0) / total * 100 if total else 0
                                 df_lote.loc[idx, "microorganismos_L"] = micro_edit
-                                st.session_state["historial_cambios_m1"].append({"lote": lote_hist, "registro": original.get("id_registro", idx), "fecha_cambio": date.today(), "usuario": "Supervisor", "accion": "Corrección", "motivo": motivo, "valor_anterior": str(anterior), "valor_nuevo": str({**edits, "microorganismos_L": micro_edit})})
+                                st.session_state["historial_cambios_m1"].append({"lote": lote_hist, "registro": original.get("id_registro", idx), "fecha_cambio": date.today(), "usuario": rol_actual, "accion": "Corrección", "motivo": motivo, "valor_anterior": str(anterior), "valor_nuevo": str({**edits, "microorganismos_L": micro_edit})})
                                 st.session_state.lotes[lote_hist] = recalcular_acumulados_lote(df_lote)
                                 st.success("Corrección guardada y acumulados posteriores recalculados.")
                                 st.rerun()
@@ -942,7 +963,7 @@ with tab_m1:
                             else:
                                 df_lote.loc[idx, "estado_registro"] = "Anulado"
                                 df_lote.loc[idx, "motivo_anulacion"] = motivo
-                                st.session_state["historial_cambios_m1"].append({"lote": lote_hist, "registro": original.get("id_registro", idx), "fecha_cambio": date.today(), "usuario": "Supervisor", "accion": "Anulación", "motivo": motivo, "valor_anterior": str(original.to_dict()), "valor_nuevo": "Registro anulado"})
+                                st.session_state["historial_cambios_m1"].append({"lote": lote_hist, "registro": original.get("id_registro", idx), "fecha_cambio": date.today(), "usuario": rol_actual, "accion": "Anulación", "motivo": motivo, "valor_anterior": str(original.to_dict()), "valor_nuevo": "Registro anulado"})
                                 st.session_state.lotes[lote_hist] = recalcular_acumulados_lote(df_lote)
                                 st.success("Registro anulado. Se conserva en el historial y ya no participa en los cálculos.")
                                 st.rerun()
@@ -1003,7 +1024,7 @@ with tab_m1:
                     if fuera and not obs.strip():
                         st.error("Debes registrar una justificación para cerrar fuera del intervalo admisible.")
                     else:
-                        fila_cierre = {"id_registro": f"{lote_cierre}-CIERRE", "tipo_registro": "Cierre de armado", "fecha": fecha_cierre, "operador": "Supervisor", "estado_registro": "Activo", "motivo_anulacion": "", "observacion": obs, **{f"{c}_ton": (ld_real_t if c == "LD" else 0.0) for c in INSUMOS_REF}, **{f"{c}_%mezcla": 0.0 for c in INSUMOS_REF}, "microorganismos_L": 0.0, "masa_total_ton": ld_real_t, "humedad_%": INSUMOS_REF["LD"]["humedad"], "relacion_cn": INSUMOS_REF["LD"]["carbono"] / INSUMOS_REF["LD"]["nitrogeno"], "masa_acumulada_ton": None, "humedad_acumulada_%": None, "cn_acumulado": None, "carbono_total_kg": 0.0, "nitrogeno_total_kg": 0.0, "hum_min_lote": hmin_l, "hum_max_lote": hmax_l, "cn_min_lote": cnmin_l, "cn_max_lote": cnmax_l}
+                        fila_cierre = {"id_registro": f"{lote_cierre}-CIERRE", "tipo_registro": "Cierre de armado", "fecha": fecha_cierre, "operador": rol_actual, "estado_registro": "Activo", "motivo_anulacion": "", "observacion": obs, **{f"{c}_ton": (ld_real_t if c == "LD" else 0.0) for c in INSUMOS_REF}, **{f"{c}_%mezcla": 0.0 for c in INSUMOS_REF}, "microorganismos_L": 0.0, "masa_total_ton": ld_real_t, "humedad_%": INSUMOS_REF["LD"]["humedad"], "relacion_cn": INSUMOS_REF["LD"]["carbono"] / INSUMOS_REF["LD"]["nitrogeno"], "masa_acumulada_ton": None, "humedad_acumulada_%": None, "cn_acumulado": None, "carbono_total_kg": 0.0, "nitrogeno_total_kg": 0.0, "hum_min_lote": hmin_l, "hum_max_lote": hmax_l, "cn_min_lote": cnmin_l, "cn_max_lote": cnmax_l}
                         actualizado = pd.concat([df_cierre, pd.DataFrame([fila_cierre])], ignore_index=True)
                         st.session_state.lotes[lote_cierre] = recalcular_acumulados_lote(actualizado)
                         st.session_state["cierres_armado_m1"][lote_cierre] = {"fecha": fecha_cierre, "intervalo_min_t": None if ld_min_kg is None else ld_min_kg / 1000, "intervalo_max_t": None if ld_max_kg is None or math.isinf(ld_max_kg) else ld_max_kg / 1000, "lodo_real_t": ld_real_t, "factor_limitante": factor, "justificacion": obs, "humedad_final": hum_f, "cn_final": cn_f}
@@ -1195,7 +1216,7 @@ with tab_m1:
 # =================================================================
 # MÓDULO 2 — CAPACIDAD DE MATERIAL ESTRUCTURANTE
 # =================================================================
-with tab_m2:
+if pagina == "Módulo 2 — Estructurante":
     encabezado("Módulo 2 — Capacidad de Material Estructurante")
 
     with st.expander("¿Qué hace este módulo? (léelo antes de calcular)"):
@@ -1227,7 +1248,7 @@ with tab_m2:
     st.subheader("1. Datos de la planificación")
     col1, col2 = st.columns(2)
     with col1:
-        operador2_sel = st.selectbox("Operador", OPERADORES, key="m2_operador_sel")
+        operador2_sel = st.selectbox("Responsable del registro", OPERADORES, key="m2_operador_sel")
         if operador2_sel == "Otro":
             operador2 = st.text_input("Nombre del operador (nuevo)", key="m2_operador_otro")
         else:
@@ -1631,13 +1652,13 @@ with tab_m2:
                 "Puedes generar el reporte para análisis, pero no se presenta como una formulación técnicamente viable."
             )
 
-        if st.button("Generar reporte de solicitud", type="primary"):
+        if st.button("Generar reporte de solicitud", type="primary", disabled=rol_actual == "Sponsor"):
             if not operador2:
                 st.error("Ingresa el nombre del operador antes de generar el reporte.")
             else:
                 reporte = f"""SOLICITUD / EVALUACIÓN DE MATERIAL ESTRUCTURANTE - PLANTA DE COMPOSTAJE
 Fecha de planificación: {fecha2}
-Operador: {operador2}
+Responsable: {operador2}
 Alternativa evaluada: {alternativa_elegida}
 Estado técnico: {estado_sel}
 
@@ -1706,7 +1727,7 @@ estas fórmulas.
 # =================================================================
 # MÓDULO 3 — SEGUIMIENTO DE PILAS
 # =================================================================
-with tab_m3:
+if pagina == "Módulo 3 — Seguimiento":
     encabezado("Módulo 3 — Seguimiento de Pilas")
     st.caption(
         "Registra la temperatura, pH y humedad de cada lote a lo largo del tiempo, y recibe recomendaciones "
@@ -1744,7 +1765,7 @@ with tab_m3:
             fase_seg = st.selectbox("Fase actual de la pila", list(FASES_COMPOSTAJE.keys()), key="m3_fase")
 
         operadores_seg = st.multiselect(
-            "Operador(es) que realizan la medición",
+            "Responsable(s) de la medición",
             [op for op in OPERADORES if op != "Otro"] + ["Otro"],
             key="m3_operadores",
         )
@@ -1777,7 +1798,7 @@ with tab_m3:
             else:
                 num_volteos_dia = 0
 
-        if st.button("Registrar seguimiento", type="primary"):
+        if st.button("Registrar seguimiento", type="primary", disabled=rol_actual == "Sponsor"):
             campos_faltantes = []
             if not operadores_seg:
                 campos_faltantes.append("operador(es)")
@@ -1917,7 +1938,7 @@ with tab_m3:
 # =================================================================
 # MÓDULO 4 — STOCK DE COMPOST
 # =================================================================
-with tab_m4:
+if pagina == "Módulo 4 — Control de lotes":
     encabezado("Módulo 4 — Stock de Compost")
     st.caption(
         "Registra los ingresos y salidas de compost terminado por lote (donación, vegetación u otro destino), "
@@ -1937,7 +1958,7 @@ with tab_m4:
                 lote_culminar = st.selectbox("Lote culminado", lotes_sin_zarandeo, key="m4_lote_culminar")
             with col_z2:
                 st.write("")
-                if st.button("Iniciar zarandeo", key="m4_btn_iniciar_zarandeo"):
+                if st.button("Iniciar zarandeo", key="m4_btn_iniciar_zarandeo", disabled=rol_actual == "Sponsor"):
                     cantidad_inicial = st.session_state.lotes[lote_culminar]["masa_acumulada_ton"].iloc[-1]
                     st.session_state["zarandeo"][lote_culminar] = {
                         "estado": "en_zarandeo", "fecha_inicio": date.today(),
@@ -1961,7 +1982,7 @@ with tab_m4:
                     ticket_zarandeo = st.text_input(f"N° ticket de pesaje — {lote_z}", key=f"m4_ticket_z_{lote_z}")
                 with col_zf3:
                     st.write("")
-                    if st.button(f"Registrar zarandeo terminado", key=f"m4_btn_fin_{lote_z}"):
+                    if st.button(f"Registrar zarandeo terminado", key=f"m4_btn_fin_{lote_z}", disabled=rol_actual == "Sponsor"):
                         if cantidad_final == 0 or not ticket_zarandeo:
                             st.error("Completa la cantidad final y el N° de ticket de pesaje.")
                         else:
@@ -1999,7 +2020,7 @@ with tab_m4:
         with col_s5:
             ticket_pesaje = st.text_input("N° de ticket de pesaje", key="m4_ticket_pesaje")
 
-        if st.button("Registrar salida de compost", type="primary"):
+        if st.button("Registrar salida de compost", type="primary", disabled=rol_actual == "Sponsor"):
             campos_faltantes_salida = []
             if cantidad_salida_ton == 0:
                 campos_faltantes_salida.append("cantidad que sale")
@@ -2072,7 +2093,7 @@ with tab_m4:
 # =================================================================
 # MÓDULO 5 — ANÁLISIS DE LABORATORIO
 # =================================================================
-with tab_m5:
+if pagina == "Módulo 5 — Laboratorio":
     encabezado("Módulo 5 — Análisis de Laboratorio")
     st.caption(
         "Registra el envío de muestras a laboratorio, el conteo de días de espera, y compara "
@@ -2089,7 +2110,7 @@ with tab_m5:
         with col_l2:
             fecha_envio_lab = st.date_input("Fecha de envío a laboratorio", value=date.today(), key="m5_fecha_envio")
 
-        if st.button("Registrar envío a laboratorio", type="primary"):
+        if st.button("Registrar envío a laboratorio", type="primary", disabled=rol_actual == "Sponsor"):
             st.session_state["laboratorio"][lote_lab] = {
                 "fecha_envio": fecha_envio_lab, "fecha_resultado": None, "resultados": None,
             }
@@ -2140,7 +2161,7 @@ with tab_m5:
             r_salm = c15.number_input("Salmonella spp (NMP en 4g)", min_value=0.0, step=1.0, key="m5_r_salm")
             r_helm = c16.number_input("Huevos de helmintos viables (en 4g)", min_value=0.0, step=1.0, key="m5_r_helm")
 
-            if st.button("Registrar resultados y comparar con la norma", type="primary"):
+            if st.button("Registrar resultados y comparar con la norma", type="primary", disabled=rol_actual == "Sponsor"):
                 resultados = {
                     "humedad": r_humedad, "conductividad": r_ce, "relacion_cn": r_cn, "ph": r_ph,
                     "materia_organica": r_mo, "nitrogeno": r_n, "fosforo": r_p, "potasio": r_k,
@@ -2220,6 +2241,44 @@ with tab_m5:
             dias_espera_total = (datos_reporte["fecha_resultado"] - datos_reporte["fecha_envio"]).days
             st.caption(f"Enviado a laboratorio: {datos_reporte['fecha_envio']} · Resultado recibido: {datos_reporte['fecha_resultado']} ({dias_espera_total} días de espera)")
 
+            st.subheader("5. Validación del Sponsor")
+            validacion_existente = st.session_state["validaciones_sponsor"].get(lote_reporte)
+            if validacion_existente:
+                st.success(
+                    f"Validación registrada: {validacion_existente['decision']} — "
+                    f"{validacion_existente['fecha']}"
+                )
+                st.write(f"**Comentario:** {validacion_existente['comentario'] or 'Sin comentario adicional'}")
+            elif rol_actual == "Sponsor":
+                decision_sponsor = st.radio(
+                    "Decisión final", ["Conforme", "No conforme"],
+                    horizontal=True, key=f"decision_sponsor_{lote_reporte}"
+                )
+                comentario_sponsor = st.text_area(
+                    "Comentario de validación", key=f"comentario_sponsor_{lote_reporte}"
+                )
+                confirmar_sponsor = st.checkbox(
+                    "Confirmo la revisión de los resultados y la recomendación final.",
+                    key=f"confirmar_sponsor_{lote_reporte}"
+                )
+                if st.button(
+                    "Registrar validación del Sponsor", type="primary",
+                    disabled=not confirmar_sponsor, key=f"validar_sponsor_{lote_reporte}"
+                ):
+                    if decision_sponsor == "No conforme" and not comentario_sponsor.strip():
+                        st.error("La decisión 'No conforme' requiere un comentario.")
+                    else:
+                        st.session_state["validaciones_sponsor"][lote_reporte] = {
+                            "decision": decision_sponsor,
+                            "comentario": comentario_sponsor.strip(),
+                            "fecha": date.today(),
+                            "rol": "Sponsor",
+                        }
+                        st.success("Validación del Sponsor registrada.")
+                        st.rerun()
+            else:
+                st.info("Pendiente de validación. Esta acción está disponible únicamente para el Sponsor.")
+
             csv_reporte = df_reporte.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "Descargar reporte (CSV)", data=csv_reporte,
@@ -2227,3 +2286,147 @@ with tab_m5:
             )
         else:
             st.caption("Aún no hay resultados de laboratorio registrados.")
+
+# =================================================================
+# ADMINISTRACIÓN — EXCLUSIVO DE LA ADMINISTRADORA
+# =================================================================
+if pagina == "Administración" and rol_actual == "Administradora":
+    encabezado("Administración")
+    st.caption(
+        "Configuración controlada de rangos, fichas técnicas y responsables. "
+        "Los cambios quedan versionados y se aplican a lotes nuevos."
+    )
+
+    lotes_abiertos_admin = [
+        codigo for codigo in st.session_state.lotes
+        if codigo not in st.session_state["cierres_armado_m1"]
+    ]
+    if lotes_abiertos_admin:
+        st.warning(
+            "Hay lotes en armado. Para proteger sus cálculos, la configuración no puede "
+            "cambiar hasta finalizar esos armados: " + ", ".join(lotes_abiertos_admin)
+        )
+
+    st.subheader("1. Rangos de formulación")
+    with st.form("form_config_general"):
+        a1, a2, a3, a4 = st.columns(4)
+        nuevo_hum_min = a1.number_input("Humedad mínima (%)", 0.0, 100.0, hum_min, 1.0)
+        nuevo_hum_max = a2.number_input("Humedad máxima (%)", 0.0, 100.0, hum_max, 1.0)
+        nuevo_cn_min = a3.number_input("C/N mínima", 0.0, 1000.0, cn_min, 1.0)
+        nuevo_cn_max = a4.number_input("C/N máxima", 0.0, 1000.0, cn_max, 1.0)
+        nueva_densidad_micro = st.number_input(
+            "Densidad de microorganismos (kg/L)", min_value=0.01,
+            value=DENSIDAD_MICROORGANISMOS_KG_L, step=0.01, format="%.2f"
+        )
+        motivo_config = st.text_area("Motivo del cambio de configuración")
+        guardar_general = st.form_submit_button(
+            "Guardar nueva versión", type="primary",
+            disabled=bool(lotes_abiertos_admin)
+        )
+        if guardar_general:
+            if nuevo_hum_min >= nuevo_hum_max or nuevo_cn_min >= nuevo_cn_max:
+                st.error("El valor mínimo debe ser menor que el máximo.")
+            elif not motivo_config.strip():
+                st.error("Indica el motivo del cambio.")
+            else:
+                anterior = {
+                    "hum_min": hum_min, "hum_max": hum_max,
+                    "cn_min": cn_min, "cn_max": cn_max,
+                    "densidad_micro": DENSIDAD_MICROORGANISMOS_KG_L,
+                }
+                config_admin.update({
+                    "hum_min": nuevo_hum_min, "hum_max": nuevo_hum_max,
+                    "cn_min": nuevo_cn_min, "cn_max": nuevo_cn_max,
+                    "densidad_micro": nueva_densidad_micro,
+                    "version": int(config_admin.get("version", 1)) + 1,
+                })
+                st.session_state["historial_config_admin"].append({
+                    "fecha": date.today(), "administradora": "Administradora",
+                    "seccion": "Rangos de formulación", "motivo": motivo_config.strip(),
+                    "valor_anterior": str(anterior),
+                    "valor_nuevo": str({
+                        "hum_min": nuevo_hum_min, "hum_max": nuevo_hum_max,
+                        "cn_min": nuevo_cn_min, "cn_max": nuevo_cn_max,
+                        "densidad_micro": nueva_densidad_micro,
+                    }),
+                    "version": config_admin["version"],
+                })
+                st.success("Nueva versión de parámetros guardada.")
+                st.rerun()
+
+    st.subheader("2. Fichas técnicas de insumos")
+    codigo_admin = st.selectbox(
+        "Insumo", list(INSUMOS_REF),
+        format_func=lambda c: f"{INSUMOS_REF[c]['nombre']} ({c})"
+    )
+    ref_admin = INSUMOS_REF[codigo_admin]
+    with st.form("form_ficha_insumo"):
+        fi1, fi2, fi3 = st.columns(3)
+        ficha_h = fi1.number_input("Humedad (%)", 0.0, 100.0, float(ref_admin["humedad"]), 0.1)
+        ficha_c = fi2.number_input("Carbono (%)", 0.0, 100.0, float(ref_admin["carbono"]), 0.1)
+        ficha_n = fi3.number_input("Nitrógeno (%)", 0.0, 100.0, float(ref_admin["nitrogeno"]), 0.01, format="%.2f")
+        cn_calculado_admin = ficha_c / ficha_n if ficha_n > 0 else None
+        st.info(f"C/N calculado automáticamente: {cn_calculado_admin:.1f} : 1" if cn_calculado_admin else "C/N no calculable sin nitrógeno.")
+        motivo_ficha = st.text_area("Motivo de actualización de la ficha")
+        guardar_ficha = st.form_submit_button(
+            "Actualizar ficha técnica", type="primary",
+            disabled=bool(lotes_abiertos_admin)
+        )
+        if guardar_ficha:
+            if ficha_n <= 0:
+                st.error("El nitrógeno debe ser mayor que cero para calcular C/N.")
+            elif not motivo_ficha.strip():
+                st.error("Indica el motivo de la actualización.")
+            else:
+                anterior = copy.deepcopy(config_admin["insumos"][codigo_admin])
+                config_admin["insumos"][codigo_admin].update({
+                    "humedad": ficha_h, "carbono": ficha_c,
+                    "nitrogeno": ficha_n, "cn": cn_calculado_admin,
+                })
+                config_admin["version"] = int(config_admin.get("version", 1)) + 1
+                st.session_state["historial_config_admin"].append({
+                    "fecha": date.today(), "administradora": "Administradora",
+                    "seccion": f"Ficha {codigo_admin}", "motivo": motivo_ficha.strip(),
+                    "valor_anterior": str(anterior),
+                    "valor_nuevo": str(config_admin["insumos"][codigo_admin]),
+                    "version": config_admin["version"],
+                })
+                st.success("Ficha técnica actualizada y versionada.")
+                st.rerun()
+
+    st.subheader("3. Responsables habilitados")
+    responsables_txt = st.text_area(
+        "Un responsable por línea",
+        value="\n".join(x for x in OPERADORES if x != "Otro"),
+        key="responsables_admin_txt"
+    )
+    if st.button("Actualizar responsables", disabled=bool(lotes_abiertos_admin)):
+        responsables_nuevos = [x.strip() for x in responsables_txt.splitlines() if x.strip()]
+        if not responsables_nuevos:
+            st.error("Registra al menos un responsable.")
+        else:
+            config_admin["responsables"] = list(dict.fromkeys(responsables_nuevos)) + ["Otro"]
+            config_admin["version"] = int(config_admin.get("version", 1)) + 1
+            st.session_state["historial_config_admin"].append({
+                "fecha": date.today(), "administradora": "Administradora",
+                "seccion": "Responsables", "motivo": "Actualización de responsables habilitados",
+                "valor_anterior": str(OPERADORES),
+                "valor_nuevo": str(config_admin["responsables"]),
+                "version": config_admin["version"],
+            })
+            st.success("Responsables actualizados.")
+            st.rerun()
+
+    st.subheader("4. Roles y permisos")
+    st.dataframe(pd.DataFrame([
+        {"Rol": "Supervisor de Operaciones", "Permiso": "Registra y gestiona F1–F6; confirma fases y cierres."},
+        {"Rol": "Sponsor", "Permiso": "Consulta; valida conformidad final en Laboratorio."},
+        {"Rol": "Administradora", "Permiso": "Administra catálogos, parámetros, usuarios y correcciones."},
+    ]), use_container_width=True, hide_index=True)
+
+    st.subheader("5. Historial de configuración")
+    st.caption(f"Versión vigente: {config_admin.get('version', 1)}")
+    if st.session_state["historial_config_admin"]:
+        st.dataframe(pd.DataFrame(st.session_state["historial_config_admin"]), use_container_width=True, hide_index=True)
+    else:
+        st.info("Aún no se han realizado cambios administrativos.")
